@@ -1,0 +1,35 @@
+MAKE Version 3.6  Copyright (c) 1992 Borland International
+
+Available memory 7282192 bytes
+
+        snasm68k /g /o l+,v+ /k /l /w scaler.s,scaler.obj
+
+SNASM version 1.14
+
+Scaler module is SCALER.S(1216) : Error : Expression must evaluate
+ inform 0,'Scaler module is %d bytes',offset(scaleend)-offset(scalestart)
+EQUATES.I(204) : Error : Label 'vdp_modeset1' multiply defined
+vdp_modeset1 equ 0
+EQUATES.I(205) : Error : Label 'vdp_modeset2' multiply defined
+vdp_modeset2 equ 1
+EQUATES.I(211) : Error : Label 'vdp_backcol' multiply defined
+vdp_backcol equ 7
+EQUATES.I(214) : Error : Label 'vdp_hintreg' multiply defined
+vdp_hintreg equ 10
+EQUATES.I(215) : Error : Label 'vdp_modeset3' multiply defined
+vdp_modeset3 equ 11
+EQUATES.I(216) : Error : Label 'vdp_modeset4' multiply defined
+vdp_modeset4 equ 12
+EQUATES.I(220) : Error : Label 'vdp_scrollsize' multiply defined
+vdp_scrollsize equ 16
+EQUATES.I(221) : Error : Label 'vdp_windowhpos' multiply defined
+vdp_windowhpos equ 17
+EQUATES.I(222) : Error : Label 'vdp_windowvpos' multiply defined
+vdp_windowvpos equ 18
+EQUATES.I(226) : Error : Label 'vdp_dmasrcmid' multiply defined
+vdp_dmasrcmid equ 22
+Errors during pass 1 - pass 2 aborted
+Assembly completed.
+11 error(s) from 4794 lines in 0.2 seconds
+
+** error 3 ** deleting scaler.obj

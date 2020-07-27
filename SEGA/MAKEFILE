@@ -1,0 +1,13 @@
+
+
+
+dl.exe: dl.obj scsi.obj
+	tlink -v c0l+dl+scsi,dl,,cl
+
+
+
+.c.obj:
+	bcc -c -ml -v $<
+
+.asm.obj:
+	tasm -zi $<

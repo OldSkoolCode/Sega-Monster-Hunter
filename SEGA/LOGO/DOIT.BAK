@@ -1,0 +1,3 @@
+\sierra\asm68k main.s
+\sierra\link68 -o main.lnk main.o
+\sierra\sldr -St main.lnk logodemo.abs

@@ -1,0 +1,104 @@
+asm68k lib.a
+68020 Macro Asm 2.10  Copyright 1987-91 by Sierra Systems. All rights reserved.
+lib.a, 1: illegal characters at start of line
+lib.a, 2: illegal characters at start of line
+lib.a, 3: illegal characters at start of line
+lib.a, 4: illegal characters at start of line
+lib.a, 5: illegal characters at start of line
+lib.a, 6: illegal characters at start of line
+lib.a, 7: illegal characters at start of line
+lib.a, 8: illegal characters at start of line
+lib.a, 9: illegal characters at start of line
+lib.a, 10: illegal characters at start of line
+lib.a, 11: illegal characters at start of line
+lib.a, 12: illegal characters at start of line
+lib.a, 13: illegal characters at start of line
+lib.a, 14: illegal characters at start of line
+lib.a, 15: illegal characters at start of line
+lib.a, 16: illegal characters at start of line
+lib.a, 17: illegal characters at start of line
+lib.a, 18: illegal characters at start of line
+lib.a, 30: illegal characters at start of line
+lib.a, 33: illegal characters at start of line
+lib.a, 34: illegal characters at start of line
+lib.a, 35: illegal characters at start of line
+lib.a, 43: illegal characters at start of line
+lib.a, 44: illegal characters at start of line
+lib.a, 52: illegal characters at start of line
+lib.a, 53: illegal characters at start of line
+lib.a, 61: illegal characters at start of line
+lib.a, 62: illegal characters at start of line
+lib.a, 63: illegal characters at start of line
+lib.a, 66: illegal characters at start of line
+lib.a, 67: illegal characters at start of line
+lib.a, 73: illegal characters at start of line
+lib.a, 81: illegal characters at start of line
+lib.a, 82: illegal characters at start of line
+lib.a, 83: illegal characters at start of line
+lib.a, 84: illegal characters at start of line
+lib.a, 93: illegal characters at start of line
+lib.a, 94: illegal characters at start of line
+lib.a, 95: illegal characters at start of line
+lib.a, 104: illegal characters at start of line
+lib.a, 105: illegal characters at start of line
+lib.a, 106: illegal characters at start of line
+lib.a, 115: illegal characters at start of line
+lib.a, 116: illegal characters at start of line
+lib.a, 117: illegal characters at start of line
+lib.a, 127: illegal characters at start of line
+lib.a, 129: illegal characters at start of line
+lib.a, 130: illegal characters at start of line
+lib.a, 131: illegal characters at start of line
+lib.a, 140: illegal characters at start of line
+lib.a, 143: illegal characters at start of line
+lib.a, 147: illegal characters at start of line
+lib.a, 149: illegal characters at start of line
+lib.a, 153: illegal characters at start of line
+lib.a, 154: illegal characters at start of line
+lib.a, 155: illegal characters at start of line
+lib.a, 169: illegal characters at start of line
+lib.a, 170: illegal characters at start of line
+lib.a, 171: illegal characters at start of line
+lib.a, 172: illegal characters at start of line
+lib.a, 173: illegal characters at start of line
+lib.a, 174: illegal characters at start of line
+lib.a, 175: illegal characters at start of line
+lib.a, 176: illegal characters at start of line
+lib.a, 177: illegal characters at start of line
+lib.a, 178: illegal characters at start of line
+lib.a, 179: illegal characters at start of line
+lib.a, 182: illegal characters at start of line
+lib.a, 188: illegal characters at start of line
+lib.a, 198: illegal characters at start of line
+lib.a, 210: illegal characters at start of line
+lib.a, 211: illegal characters at start of line
+lib.a, 213: illegal characters at start of line
+lib.a, 214: illegal characters at start of line
+lib.a, 220: illegal characters at start of line
+lib.a, 230: illegal characters at start of line
+lib.a, 242: illegal characters at start of line
+lib.a, 243: illegal characters at start of line
+lib.a, 244: illegal characters at start of line
+
+Total Errors:     79
+Total Warnings:    0
+asm68k shell.a
+68020 Macro Asm 2.10  Copyright 1987-91 by Sierra Systems. All rights reserved.
+shell.a, 21: illegal OPT option: E
+shell.a, 32: symbol/expression must be absolute: fill value
+shell.a, 32: illegal argument: fill value
+shell.a, 38: symbol/expression must be absolute: fill value
+shell.a, 38: illegal argument: fill value
+
+Total Errors:      5
+Total Warnings:    0
+asm68k intshell.a
+68020 Macro Asm 2.10  Copyright 1987-91 by Sierra Systems. All rights reserved.
+intshell.a, 23: illegal OPT option: E
+intshell.a, 33: symbol/expression must be absolute: fill value
+intshell.a, 33: illegal argument: fill value
+intshell.a, 39: symbol/expression must be absolute: fill value
+intshell.a, 39: illegal argument: fill value
+
+Total Errors:      5
+Total Warnings:    0

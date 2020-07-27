@@ -1,0 +1,88 @@
+Date: 04/01/92
+
+Updated Version of SCAT.exe  by Claude C. Foucault  
+
+
+Reference: SCAT UPDATE Bugs List of 03/17/92 by Steve Snyder
+
+___________________________________________________
+
+Problem #1:
+
+Downloaded animations still coming into the Genesis 40-50 pixels
+below their corresponding position on the source IBM screen.
+
+Status: No Change (Was not able to reproduce this problem)
+___________________________________________________
+
+Problem #2:
+
+Ability to Download Images consecutively is at about 40%.
+
+Status: Although I was not able to reproduce the problem, I added 
+several changes to help alleviating timing errors. The updated
+software was tested repetitively on 20, 25 and 40Megaherz CPU's.
+___________________________________________________
+
+Problem #3:
+
+In the Image Editor, the primitive (X) command still draws
+only a dotted line horizontally.
+
+Status: Unchanged, I am still looking into this and other
+related problems
+___________________________________________________
+
+Problem #4:
+
+Saving to a WRITE Protected Floppy freezes the system.
+
+Status: Fixed
+
+___________________________________________________
+
+Problem #5:
+
+Brush Grabbing function in the image window is not accurately grabbing
+what the crosshais show. ...
+
+Status: Fixed
+___________________________________________________
+
+Problem #6:
+
+The Modify Sprite (M) function is creating a smaller size brush/sprite
+than the crosshairs indicate.
+
+Status: Fixed
+___________________________________________________
+
+Problem #7:
+
+Horizontal movement for   grabbing windows in the Image window will
+only allow you to grab on an even number pixel instead of single 
+pixel resolution.
+
+Status: Unchanged, Could not reproduce this problem!
+___________________________________________________
+
+Problem #8:
+
+Crosshair invert color not always happening. Particularly when
+over black.
+
+Status: Unchanged
+___________________________________________________
+
+Problem #9:
+
+Only the default screen size (2 x 2) will download and scroll
+on the genesis. Anything larger won't show up.
+
+Status: Unchanged, it turns out this is the way the program
+was designed. This is not an error.  
+
+
+
+
+

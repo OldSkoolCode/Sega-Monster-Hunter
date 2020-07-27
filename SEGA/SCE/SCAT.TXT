@@ -1,0 +1,947 @@
+				    SEGA
+			   CHARACTER and ANIMATION
+				    TOOL
+SCAT 2.0
+Update 12/14/91
+
+
+
+A BRIEF DESCRIPTION
+
+The Sega Character and Animation Tool (SCAT) was designed to process images
+created in commercial paint programs into character blocks or tiles.  These
+character blocks can be used to build maps for the game play field or sprites
+to create animation sequences.  Although it has some character editing
+capabilities, it is not intended to be a drawing program.
+Many artists are severely restricted by character editors because they are
+expected to create their art in these editors.  Although art created in these
+editors make programmers very happy (because it is generally compact and
+efficient), the art suffers from having to spawn a picture from an 8 by 8
+pixel seed.  A character block, in general, is a very difficult concept for
+most people to understand.  However, most people can understand taking a
+picture and breaking it up into little 8 by 8 squares such as a puzzle.  Once
+broken up into little pieces, it is easier to find duplicate or redundant
+pieces because the computer can do this best.  Finally, the character set can
+be reduced further by looking for close matches.
+
+This is the premise for the SCAT, to make the character blocks as transparent
+as possible for as long as possible.  Initially the maps or animation frames
+can be created directly from the images created in the paint program.  Each
+time an image is placed into the map or sprite editor, it is broken into
+character blocks and placed in a character set.  But unless the character set
+or character editor is selected, this is transparent to the user.  The user
+still sees only the map and the image used to create the map.  The character
+editor is a tool to help translate the images created in the paint program
+into the Genesis.
+
+The artist does have a responsibility to create the images in the paint
+program with some forethought of creating images that can easily be duplicated
+throughout the map or sprite.  They should also be aware of the character
+count when adding images to the map.  But the artist would have to deal with
+this regardless of the technique used to create the art.
+
+SCAT is actually two editors in one --an editor to create a map and an editor
+to create sprite animation.  Both editors utilize DPaint pictures, brushes or
+PCX format pictures.  These externally created images/pictures are
+independently loaded and stored in their original form through the Image
+options in either mode.
+
+
+
+
+ABOUT THIS MANUAL
+
+Several conventions are used in this manual:
+
+	COMMANDS are represented using capital bold letters (for example
+		MISC).
+
+	KEYBOARD COMMANDS are represented by the symbol enclosed in brackets
+		(for example <SPACEBAR>).  Some menu commands can also be
+		accessed with the use of the keyboard; in that case the
+		keyboard command is given next to the menu command.
+		You cannot use a keyboard command when the mouse is over a
+		highlighted command.  If it is, move the mouse to a clear
+		area.  Also ensure that the mouse is over the window you wish
+		to use the command in.
+
+	MULTIPLE COMMAND SEQUENCES are represented by individual commands
+		separated by the vertical bar when one command is to follow
+		another (for example MISC | GET PAL, this means select MISC,
+		then select GET PAL), and by a plus sign when both commands
+		must be chosen at the same time (for example <ALT>+<3>, which
+		means press the <ALT> key, THEN also press the <3> key, while
+		holding <ALT> down).
+
+ 
+
+
+GETTING STARTED
+
+To start SCAT first make sure you have the SCAT.EXE file.  
+From the DOS command line, simply type SCAT with a pathname
+(example C:\TOOLS\SCAT).  You need to make sure that you are not in another
+application's shell, otherwise SCAT may give you a "Not Enough Memory" error.
+
+
+COMMAND LINE OPTIONS
+
+You can use several options designed to speed use of the tool.  Usage is as
+follows:
+
+	[drive:][\pathname\]SCAT [-options]
+
+Where options can be one of the following:
+
+	-M			Go directly to map editor.
+
+	-S			Go directly to sprite editor.
+
+
+
+RUNNING SCAT FROM A FLOPPY DISK
+
+Because SCAT generates large temporary files in the current directory (not
+necessarily the one with SCAT.EXE), you should not run the program from a
+floppy disk.  Before running the program, simply switch to your hard disk.
+In any case, make sure there is at least 7K per map screen of free space in
+the current directory.
+
+
+
+
+THE MAIN MENU
+
+MODE		|	EXIT		|	VERSION #
+
+Once  the application runs you are presented with the main menu.  Options
+include:
+
+	MODE		Switch between the map editor and sprite editor.
+
+		MAP EDITOR	Go to the map editor portion of SCAT.  You
+				can go directly there from DOS by typing
+				SCAT -m.
+
+		SPRITE EDITOR	Go to the sprite editor portion of SCAT.  You
+				can go directly there from DOS by typing
+				SCAT -s.
+
+		ABOUT		Give information on the program's copyright,
+				version number, and creator.
+
+		CANCEL		Exit mode selection.  Clicking the mouse
+				outside the window in any menu is equivalent
+				to selecting CANCEL.
+
+	EXIT		Exit SCAT.
+
+		EXIT		This verifies that you  want to exit.  NOTE
+				Make sure that you have saved all your files
+				before selecting this option.
+
+		CANCEL		Closes this menu.
+
+
+
+
+MAP EDITOR
+
+=  |      FILE      |      VIEW      |      MISC      |      A      |     x,y
+
+The Map Editor allows you to create maps of various sizes.  It is only
+limited by the amount of memory your computer has available.  This editor has
+been tested up to 100 screens by 100 screens.  Obviously this takes a
+tremendous amount of hard disk space (70 MEG!) and is not recommended for most
+game applications.  Any configuration of map dimension is possible
+(see MISC | RESIZE MAP).
+
+An example of its usage:
+*	Select MAP EDITOR under the Mode menu.
+
+*	Select IMAGE under the View menu to bring up the split screen window.
+
+*	From the image screen, load a picture or brush you created in DPaint
+	or a scanned image saved in a PCX format.
+
+*	Move the IMAGE window up (Up symbol) so the entire picture is in view.
+	With the left button click and drag the entire picture from the upper
+	left hand corner to the lower right corner.
+
+*	Lower the IMAGE window (Down symbol) so the MAP EDITOR window is
+	visible.  (The entire window does not have to be visible to stamp down
+	a grabbed picture.)  Press and hold the right button to bring up the
+	frame of the grabbed picture and position it in the map.  Release the
+	button to stamp down the picture in the map.  The picture is
+	automatically separated into 8 pixel by 8 pixel chars and placed in
+	the char set.
+	Do not close the IMAGE window.  This window tells the editor you are
+	moving an image into the map area.  Without this window active, the
+	editor assumes you want to manipulate the chars in the map.
+
+*	Select the MISC | GET PAL option in the editor to get the map's
+	palette.
+
+*	If you stamped the picture/image down incorrectly, do not undo the
+	stamp.  Undoing and restamping while the IMAGE window is active will
+	add the same chars to the end of the char set.  Instead close the
+	IMAGE window so only the MAP EDITOR window is active and use the
+	BLOCK COPY and PASTE  function.  To copy, click and drag over the
+	image with the right button.  Hold down the left button to bring up
+	the frame of the copied image and move it to correct position.
+	Release the button to paste it down.  Manipulating chars in the MAP
+	EDITOR does not affect the char set.
+
+*	The block copy function can also be used to FLIP images.  Copy by
+	clicking and dragging over the image.  Hold down the right button to
+	bring up the frame of the copied image and press <X.> for horizontal
+	flip (left-right) or <Y> for vertical flip (top-down).
+
+*	To set OBSTACLES or PRIORITY in the map, hold the <ALT> key and click
+	and drag over a block of chars.  The frame will remain on the block.
+	Press <ESC> to abort  obstacle function, <C> to clear a previously
+	set obstacle, and <1>-<9>to  set the block as an obstacle, or <+> or
+	<-> to set or clear the priority.
+
+
+
+
+
+The following functions are supported in the map editor:
+
+	=			Exits the map mode and returns to the main
+				menu.
+
+	FILE			Perform file operations.
+
+		SAVE <F2>	Allows the saving of different map file
+				formats.  You can save using either .GEN or
+				.PCX (current screen only) format.
+
+		LOAD <F3>	Allows the loading of .GEN formatted files.
+
+		NEW		Clears the current map from memory.  The size
+				remains the same, however.
+
+		CANCEL		Closes this menu.
+
+	VIEW <SPACE> 	Provides a split screen area for manipulating
+			characters used in the map and for pictures that are
+			used to bring new characters into the map.
+			This split screen window can be manipulated
+			independent of the map screen window.  While in this
+			window, it can be scrolled using the arrow keys, up,
+			down, left, right and diagonals.  The window itself
+			can be scrolled up or down to view more of the map
+			screen or more of the View screen.
+
+		IMAGE <I>	Opens up the image window.
+				Pictures or brushes created in DPaint (or any
+				PCX files) can be cut and pasted into the map
+				area.  When pasted into the map area, the
+				image is separated into characters and added
+				to the character set.  See IMAGE WINDOW for
+				instructions on loading and saving pictures.
+
+		CHAR SET <C>	Brings up in the split screen the entire
+				character set for the map.  See CHARACTER SET
+				WINDOW for instructions on using this option.
+
+		CHAR EDITOR <E>
+				The character editor allows you to edit or
+				manipulate the individual characters in the
+				set.  See CHARACTER EDITOR WINDOW for
+				instructions on using this option.
+
+		BLOCK EDITOR	This will enable you to use the 4x4 block
+				editor to increase efficiency.  Make sure you
+				align the 4x4 grid with the screen before
+				selecting this option.
+
+		CANCEL		Close the View menu.
+
+
+	MISC			Use a variety of map editor options.
+
+		GET PAL		Gets the palette from the current image
+				displayed in the split screen window.  This
+				is primarily used to bring in a palette from
+				an image being cut and pasted into the map
+				(such as a DPaint picture or brush).  Do not
+				use this if you have loaded a map with its
+				own palette because it will be replaced.
+
+		SEGA <F5>	Send the map data to the Genesis.  Both maps
+				are downloaded.
+
+		4x4 GRID <G>  	This places a 4 char by 4 char grid over the
+				map.
+				The purpose of this feature is to compress the
+				map data by duplicating bigger blocks of
+				repeating chars.  The grid serves as
+				reference and is oriented to the upper left
+				hand corner of the map (not screen oriented).
+
+		RESIZE MAP	This allows you to increase or decrease the
+				size of the map (in screens) both horizontally
+				and vertically.  Increasing the size of the
+				map in either direction will not affect the
+				existing map.  The extra width or height will
+				be added to the end.  You will, however, lose
+				map information if you shrink the map size.
+				It will be reduced at the right edge and/or
+				bottom of the map.  All maps are the
+				automatically maintained the same size.
+
+		SHOW PRIORITY <P>
+				Highlights set priorities.
+
+		CLEAR OBS MAP
+				Clears all previously set obstacles.
+
+		SHOW OBS MAP <O>
+				Highlights set obstacles.
+
+		SCREEN MARKER <S>
+				Marks screen boundaries for visual reference.
+
+		CANCEL		Close the MISC menu in the map area.
+
+	A/B <F1>	Display Map A or Map B by clicking on this button.
+			Map A is the default map.
+
+
+
+
+ADDITIONAL COMMANDS
+
+These are additional commands not available in the menus.  They include:
+
+	<F4>	Opens a 'Go to screen' window.  The window contains a grid
+		representing the screens in the current map.  Clicking the
+		mouse in the grid will instantly go to that screen in the
+		current map.  Clicking outside the window will abort the
+		operation.
+
+	<U>	Undo any last paste action.
+
+	CHAR SCROLLING
+		Char scrolling in the MAP editor is accomplished by using
+		the numeric keypad (with <NUM LOCK> off) or arrow keys:
+
+			<HOME>	<UP>		<PGUP>
+			<LEFT>			<RIGHT>
+			<END>	<DOWN>	<PGDN>
+
+	SCREEN SCROLLING
+		Screen scrolling in the MAP editor can be done by turning on
+		<SCROLL LOCK>, or, alternatively by holding on of the <SHIFT>
+		keys while using the arrow keys to move by screens.
+
+		Make sure the mouse is in the window you are trying to scroll.
+		Either scrolling method scrolls all maps at the same time.
+		NOTE that the sprite editor's window cannot scroll.
+
+
+
+MOUSE FUNCTIONS
+
+The mouse can have several functions, depending on which button you use:
+
+	TO CUT AN AREA
+		Press the left mouse button on one corner of the rectangle,
+		drag it to the other corner and release.  This will place the
+		area cut into the clipboard and hide the rectangle.
+
+	TO SET PRIORITY OR OBSTACLES IN AN AREA
+		Press the <ALT> key THEN perform the above operation.  The
+		frame will remain on the screen.  You can then press ONE of
+		the following keys:
+
+		<+>	Set the priority in the box.
+
+		<->	Clear the priority in the box.
+
+		<S>	Set obstacles = 1 in the box.
+
+		<C>	Clear obstacles in the box.
+
+		<0>-<9>	Set obstacles in box to chosen value (0x00 - 0x09,
+			0 = clear).
+
+		<ALT><0>-<9>  	Set obstacles in box to chosen value + 128
+			(0x80 - 0x89).
+
+		Note that this will also cut the area into the clipboard, but
+		only with <+> and <->, and before changing priority bits.
+
+	TO PASTE
+		Press and hold the right mouse button and select where to
+		past the rectangle.  You can press any number of the
+		following keys:
+
+		<X>	Set/Clear the X flip bit.
+
+		<Y>	Set/Clear the Y flip bit.
+
+		Then release the button to paste.
+
+
+
+SPRITE EDITOR
+
+=   |          FILE          |          VIEW          |          MISC
+
+The sprite editor has been designed to help the artist create sprites quickly.
+The artist may create sprites in DPaint and bring them into the editor by
+simply cutting the sprite images out and pasting them into the sprite map
+area.  This process automatically divides the sprite into chars and defines
+the sprite internally.  Once all the sprite frames have been transferred to
+the sprite map area, the artist may create an animation sequence.  This is
+done by 'grabbing' any of the previously defined sprites and placing it in an
+animation frame in one of several sequences.
+
+	=		Exit the sprite editor and return to the main
+			menu.
+
+	FILE		Perform file operations.
+
+		SAVE <F2>	Allows the saving of .GEN and .PCX formats.
+
+		LOAD <F3>	Allows the loading of .GEN format files.
+
+		NEW		Clears the current sprites and animation from
+				memory.
+
+		CANCEL		Closes this menu.
+
+	VIEW <SPACE>	Provides a split screen area for manipulating
+			characters used in the map and for pictures that are
+			used to bring new characters into the map.
+			This split screen window can be manipulated
+			independent of the map screen window.  While in this
+			window, it can be scrolled using the arrow keys, up,
+			down, left, right and diagonals.  The window itself
+			can be scrolled up or down to view more of the map
+			screen or more of the View screen.
+			When a keyboard command is given, it will go to
+			whichever window the mouse is over.
+
+		IMAGE <I>	This opens the image window so that pictures
+				or brushes created in DPaint (or any PCX
+				files) can be cut and pasted into the map
+				area.  When pasted into the map area, the
+				image is separated into characters and added
+				to the character set.  See IMAGE WINDOW for
+				instructions on loading pictures.
+
+		CHAR SET <C>	Brings up in the split screen the entire
+				character set for the map.  See CHAR SET
+				WINDOW for instructions on using this option.
+
+		CHAR EDITOR <E>
+				The character editor allows you to edit or
+				manipulate the individual characters in the
+				set.  See CHAR EDITOR WINDOW for instructions
+				on using this option.
+
+		CANCEL		Close the View menu.
+
+	MISC		Perform a variety of operations on the sprites.
+
+		GET PAL		Gets the palette from the current image
+				displayed in the split screen window.  This
+				is primarily used to bring in a palette from
+				an image being cut and pasted into the map
+				(such as a DPaint picture or brush).  Do not
+				use this if you have loaded a map with its
+				own palette because it will be replaced.
+
+		ANIMATE <F1>    Go to the animation editor.
+
+		SEGA <F5>	Send the current animation, sprite and
+				character data to the Genesis (download); and
+				play the animation at with the current delay.
+
+		DEFINE SEQUENCE <F6>
+				Select the sequence number to work with.
+
+
+
+ADDITIONAL COMMANDS
+
+These are additional commands not available in the menus.  They include:
+
+	<S>		SHOW all sprite boundaries.  This toggles the view
+			on/off.
+
+	<M>		MODIFY current sprite bounds.  This allows you to
+			redefine a sprite's boundaries.  You must have the
+			mouse cursor over sprite when you select this command.
+			To define the new bounds, press the mouse on the
+			upper left corner of the sprite, drag to the lower
+			right and release.  NOTE: You are not allowed to
+			generate overlapping sprites.
+
+	<D>		DEFINE new sprite.  This allows you to add a new
+			sprite to the list.  The procedure is the same as
+			for MODIFY (see above).
+
+	<F4>		Renumber sprite order.  First select the sprite you
+			wish to renumber, then enter its new list position.
+			Note that whatever color is on the top left corner of
+			the sprite is used as the transparent color.  This is
+			to ease alignment of sprites.  In the Genesis, the
+			transparent colors will be 0,16,32, and 48.
+
+
+
+MOUSE FUNCTIONS
+
+The mouse is used to pick up and drop off sprites.
+
+	REPOSITIONING SPRITES
+		Click the right mouse button on the desired sprite and click
+		it in the new position.  You can use the <SHIFT> keys to move
+		the sprite by pixels, so you can overlap and compare sprites.
+
+
+
+SPRITE ANIMATION EDITOR
+
+The animation editor can be accessed in one of several ways:  Pressing the
+<F1>, picking up a sprite then pressing the <F1>, or selecting MISC | ANIMATE
+from the menu.  All of the animator's functions are accessed through the use
+of keyboard commands.
+In the animation editor the mouse cursor will be replaced by any sprite you
+picked up, so you can use the mouse to position it.
+The sequence, animation delay, and frame number are displayed on the status
+bar.  The frame number corresponds to the frame you are currently looking at.
+
+	PLAY mode:
+
+		<UP>		Increase play delay.
+
+		<DOWN>		Decrease play delay.
+
+		<ESC> or <SPACE>
+				Go to pause mode.
+
+	PAUSE mode:
+
+		<P>		Continue with playback from current frame.
+
+		<LEFT>		Go to previous frame number.
+
+		<RIGHT>		Go to next frame number.
+
+		<HOME>		Go to first frame in the sequence.
+
+		<END>		Go to last frame in the sequence.
+
+		<SHIFT>+<arrows>
+				Move the current frame in the desired
+				direction.  This is used to accurately
+				position the sprite within the current frame.
+				To check alignment with other frames, simply
+				press the <LEFT> or <RIGHT> arrow keys
+				without <SHIFT>.
+
+
+		<DEL>		Delete the current frame.  Note that this
+				action CANNOT be undone.
+
+		<R>		Replace the current frame's sprite with the
+				one being held by the mouse at the mouse's
+				position.
+
+		<M>		Grab the current frame's sprite for moving
+				with the mouse.  Note that this action DELETES
+				the current frame so that you may REINSERT it
+				with the sprite in a different position  (This
+				is the same as pressing <R> THEN <DEL>).
+
+		<LEFT MOUSE BUTTON>
+				Inserts the sprite in a new frame after the
+				one being displayed at the mouse's position.
+
+		<F1>		Exits the sprite animation editor back to the
+				sprite editor.
+
+
+
+CHAR SET WINDOW
+
+=   |   <UP>   |   <DOWN>   |   MISC   |   P   |   X   |   Y   |   #
+
+This window contains the entire character set for the map or sprite editor.
+
+	=		Close the split screen
+
+	<UP>		Moves the split screen up.   The split screen will
+			automatically move upward until the button is
+			released.
+
+	<DOWN>		Moves the split screen down.  The split screen will
+			automatically move downward until the button is
+			released.  If you move the window all the way off the
+			bottom of the screen, the split screen will be closed.
+
+	MISC
+
+		PACK CHARS 	Discards duplicate and unused characters in
+				the character set.  This will also update
+				both maps with the new character set.
+
+		SEGA <F5>	Download the character set to the Genesis.
+
+		CANCEL		Closes the MISC menu
+
+	P		Sets the priority of the character selected.  Click
+			on it again and the priority is cleared.  A plus sign
+			will appear next to the P when it is set.
+
+	X <X>		Flips the character selected left/right.  A plus sign
+			will appear next to the X when it is flipped.
+
+	Y <Y>		Flips the character selected upside down.  A plus sign
+			will appear next to the Y when it is flipped.
+
+	#		Character count.  This value is the total number of
+			characters in the set.  By clicking on this number,
+			you can add a blank character to the character set.
+			To remove characters, simply pack them.
+
+
+
+CHAR EDITOR WINDOW
+
+=   |   <UP>   |   <DOWN>   |   MISC   |   P   |   X   |   Y   |   #
+
+	=		Close the split screen
+
+	<UP>		Moves the split screen up.   The split screen will
+			automatically move upward until the button is
+			released.
+
+	<DOWN>		Moves the split screen down.  The split screen will
+			automatically move downward until the button is
+			released.  If you move the window all the way off the
+			bottom of the screen, the split screen will be closed.
+
+	MISC		Perform a variety of options on the char set.
+
+		PACK CHARS  	Discards duplicate and unused characters in
+				the character set.  This will also update
+				both maps with the new character set.
+
+		SEGA <F5>	Downloads the character set to the Genesis.
+
+		EDIT CHAR ZERO
+				Allows you to edit the default char for the
+				maps.  Normally this char is filled with the
+				transparent color.
+
+		LOAD PALETTE	This allows you to replace a specific partial
+				palette	(0-3) with a specific one from a .GEN
+				file.  After selecting the option, select the
+				file with the palette you wish to load.  Then
+				select the palette number to use (0-3), and
+				where you want to place it (0-3).
+
+		CANCEL		Closes the MISC menu
+
+	P		Sets the priority of the character selected.  Click
+			on it again and the priority is cleared.  A plus sign
+			will appear next to the P when it is set.
+
+	X <X>		Flips the character selected left/right.  A plus sign
+			will appear next to the X when it is flipped.
+
+	Y <Y>		Flips the character selected upside down.  A plus sign
+			will appear next to the Y when it is flipped.
+
+	#		Character count.  This value is the total number of
+			characters in the set.  By clicking on this number,
+			you can add a blank character to the character set.
+			To remove characters, simply pack them.
+
+
+	CHAR WINDOW	The selected character is magnified.  Edit the
+			character in this window.  The number below the
+			window is the character number.
+
+	CLEAR		Clears the selected character and fills it with the
+			selected color.
+
+	FLIP-X <ALT>+<X>
+			Flips the selected character left/right
+
+	FLIP-Y <ALT>+<Y>
+			Flips the selected character upside down
+
+	SHIFT L <ALT>+<L>
+			Shifts the selected character to the left.  The
+			column on the left edge wraps around to the right
+			edge.
+
+	SHIFT R <ALT>+<R>
+			Shifts the selected character to the right.  The
+			right edge column wraps around to the left edge.
+
+	SHIFT U <ALT>+<U>
+			Shifts the selected character up.  The top row wraps
+			around to the bottom.
+
+	SHIFT D <ALT>+<D>
+			Shifts the selected character down.  The bottom row
+			wraps to the top.
+
+	DELETE <ALT>+<F8>
+			Deletes the selected character from the character set.
+			NOTE that this action cannot be undone.
+
+	CLIPBOARD WINDOW
+			Whenever a character is copied or cut, it is placed
+			in this window.  This window can also be used to safe
+			guard a character while editing it.  If the editing
+			does not yield the desired effect, restore the
+			character by replacing the edited character.
+
+	COPY <F6>	Copy the selected character into the clipboard so it
+			can be inserted into the character set or replace
+			another character.
+
+	CUT <ALT>+<F6>
+			Copy the selected character into the clipboard before
+			deleting the character from the character set.  To
+			undo, insert back.
+
+	INSERT <F7>	Inserts the clipboard character into the character
+			set where indicated.  Moves all the remaining
+			character one place.
+
+	REPLACE <F8>	Replaces the character selected with the clipboard
+			character.  Once replaced the old character cannot be
+			restored.
+
+	PALETTE WINDOW
+			Contains the four palettes of 16 colors each.  Each
+			color can be edited by selecting the color and then
+			increasing or decreasing the RED, GREEN or BLUE
+			values.  The left button will decrease the value and
+			the right button will increase the value.  The color
+			value range is from 0-7 with 7 being saturated.
+
+	COPYCOLR	Select a color to copy,  select COPYCOLR, then
+			select the color to be replaced.
+
+	SWAPCOLR	Select a color to swap, select SWAPCOLR, then select
+			the other color.  The char will be changed and
+			reflected in the map.  Use this feature to rearrange
+			the palette and remap the char.
+
+
+
+IMAGE WINDOW
+
+=     |     <UP>     |     <DOWN>     |     FILE     |     IMG     |     DEL
+
+This feature allows you to load as many pictures, brushes or PCX files as
+your computer's memory will permit.  These images are for cutting out and
+using in the Map Editor or Sprite Editor.  Although you may load many files,
+the number of images loaded directly affects the amount of memory available
+for the Map Editor or Sprite Editor.
+To cut all or a portion of an image into the map or sprite editor:
+
+*	Raise the image window to show all of the desired portion.
+
+*	Place the crosshairs on the upper left corner of the image.  Pressing
+	<SHIFT> will enable you to cut on char boundaries.
+
+*	Press and drag to the lower right corner and release the mouse.
+
+*	Go to the editor window then press and hold the mouse button.
+
+*	Position the image in the desired location and release the mouse
+	button.
+
+The following are the menu commands available in the image window:
+
+	=		Close the split screen
+
+	<UP>		Moves the split screen up.   The split screen will
+			automatically move upward until the button is
+			released.
+
+	<DOWN>		Moves the split screen down.  The split screen will
+			automatically move downward until the button is
+			released.  If you move the window all the way off the
+			bottom of the screen, the split screen will be closed.
+
+	FILE		Perform file operations.
+
+		SAVE <F2>	Save the current image.
+
+		LOAD <F3>	Load a new image.
+
+		CANCEL		Closes the FILE menu.
+
+	IMG		Allows you to cycle between the various images.
+
+	DEL		Allows you to delete the current image.
+
+IMAGE PRIMITIVES
+
+There also several drawing primitives that you can use.  Simply place the
+mouse at the desired starting point and press one of the command keys.  The
+fist point will be where the mouse is.  Position the mouse to the next point
+and press the button.  NOTE, once a primitive is placed there is no UNDO.  To
+CANCEL an operation before placing, press <ESC>.
+
+	<L>		(LINE) This draws a line on the image.
+
+	<C>		(CIRCLE) This draws a circle on the image.  The
+			radius is controlled by the horizontal movement of
+			the mouse.
+
+	<D>		(DISK) This draws a filled circle.
+
+	<R>		(RECTANGLE) This draws a rectangle.
+
+	<B>		(BOX) This draws a filled box.
+
+	<X>		(PIXEL PAINT) Draw individual pixels.  Press <ESC> to
+			quit this mode.
+
+	<P>		(PALETTE) Pick a color on the palettes.  You are
+			responsible for picking a color that will be
+			compatible with all of the chars spanned by the
+			primitive that you wish to use.
+
+
+LOAD/SAVE MENU
+
+When you select LOAD or SAVE from the menus you will get a window with a file
+list from the last directory you were in, a box at the top with the current
+path list and the current filename in a box at the bottom.  To select an item
+in the list, click the mouse on it, or use either the <UP>, <DOWN>, <PAGE UP>,
+<PAGE DOWN> keys, or the scroll bar to get to it.  Double clicking on an item
+loads/saves it, if it is a file, or opens the directory.
+Typing any key in load mode selects the first item that starts with that
+letter.
+In save mode you can either select an existing filename from the list, or you
+can type in a new one.  To type in a new filename, just start typing.
+
+	OPEN		Open the current selection, depending on its type:
+
+		DIRECTORIES: 	It will open the selected directory and list
+				the files in there.
+
+		FILENAMES:	If we are in load mode then it will try to
+				load the file specified in the current
+				filename box.
+
+		DRIVE:		It will try to open the selected drive and
+				list the files in there (NOTE if you pick a
+				floppy drive, you must make sure there is a
+				disk in there!).
+
+	DRIVE		Go to the available drive list to select a different
+			drive.  (NOTE if you pick a floppy drive, you must
+			make sure there is a disk in there!).
+
+	CLOSE		Close the current directory and go the previous.  If
+			you are in the root directory you will stay there.
+			You can also click on the path list box.
+
+	SAVE		This option will only appear when you are in save
+			mode.  Clicking here saves the current selection, if
+			it is a valid filename.
+
+	TYPING A FILENAME (save mode only)
+			To enter a new filename simply type in any valid DOS
+			filename (and optional path, up to 80 characters).
+			YOU MUST TYPE IN A VALID EXTENSION (such as .GEN.
+			See the file formats supported in each editor's save).
+			You can use the following keys:
+
+		<INSERT>	Alternate between insert and
+				overstrike mode.
+		<HOME>		Go to the beginning of the filename.
+		<END>		Go to the end of the filename.
+		<DELETE>	Delete a character after the cursor.
+		<BACKSPACE>	Delete a character before the cursor.
+		<LEFT> or <RIGHT>
+				Move within the filename.
+
+	<ENTER>		To accept the current filename in the bottom box.
+			This may be a name from the list, or one just typed.
+
+	<ESC>		To cancel loading or saving a file.
+
+NOTE, the file list will only hold up to 100 filenames/directories.  If you
+should use sub-directories to hold your files to below that number.  For
+example, you can split them according to the game project that they are for.
+
+
+BACKUP FILES
+
+When saving under an already existing filename, you will be asked if you want
+to write over the old file.  If you do, press <Y> otherwise any other key.
+The program will automatically rename the old file to "_BACKUP_.GEN/PCX" and
+save the new one.  This way you can still recover the old file if you made a
+mistake.  NOTE that there is only one _BACKUP_ file generated, so only the
+latest file written over is saved.
+
+
+FILE FORMATS SUPPORTED
+
+
+	GEN		Saves the map in the old Megawice file format.  This
+			is provided for those who have integrated this format
+			into their development process.
+
+	BBM		DPaint's brush file format.
+
+	PCX		Standard PCX file format from DPaint or other art
+			tools.
+
+	LBM		DPaint's file format for images.
+
+	SCE		Saves the map in the Sega Character Editor format.
+			Not currently supported.
+
+
+
+
+
+FINAL NOTES
+
+This program has been carefully tested, but nevertheless, there may be several
+problems or bugs that may crop up.
+
+Known possible bugs include:
+
+1.	Save your work before loading or saving an image.  There might be a
+	problem with loading or saving an image file.  This seems to have
+	been fixed, temporarily, but the cause has not been found!
+
+Should the program crash, you may still be able to recover any latest work,
+depending on the crash.  While running, SCAT generates a set of temporary
+files (*.$$$).  If you wish to recover your work, simply run the program
+again and your files may reload as they were before the crash.  If the
+program crashes again (while attempting to load the temporary files), the
+temporary files have been corrupted and you must delete them.  Simply type
+DEL *.$$$ at the DOS prompt.
+
+
+I hope that this documentation makes using the program easier.
+
+
+							Dan Cavina
+
+							Interactive Designs
+
+
+

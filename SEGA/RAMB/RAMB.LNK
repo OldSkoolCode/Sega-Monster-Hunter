@@ -1,0 +1,11 @@
+	include vectors.obj
+	include segahdr.obj
+	include ramb.obj
+	include char.obj
+	
+	org	$0
+	regs	pc=$300200
+BssGroup	group	org($ff0000),Bss
+	section	.bss,BssGroup
+
+

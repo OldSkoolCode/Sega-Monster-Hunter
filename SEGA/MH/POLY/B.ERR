@@ -1,0 +1,18 @@
+MAKE Version 3.6  Copyright (c) 1992 Borland International
+
+Available memory 7282192 bytes
+
+        bcc -ml -v sy.c sya.obj
+Borland C++  Version 3.1 Copyright (c) 1992 Borland International
+sy.c:
+Error sy.c 106: Statement missing ; in function main
+Error sy.c 108: Undefined symbol 'ENDTOPY' in function main
+Error sy.c 116: Undefined symbol 'DDAMoves' in function main
+Error sy.c 119: Undefined symbol 'destOffset' in function main
+Error sy.c 149: Undefined symbol 'destOffset' in function writeCode
+Warning sy.c 306: 'charcount' is assigned a value that is never used in function dumpWall
+*** 5 errors in Compile ***
+
+        Available memory 4068712
+
+** error 1 ** deleting sy.exe

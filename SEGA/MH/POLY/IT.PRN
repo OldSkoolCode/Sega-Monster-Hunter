@@ -1,0 +1,114 @@
+;{----------------------------------------------------------------------}
+;{ Function:	interpolate(srcSize, dstSize);				}
+;{				DDAVars far *DDAVarsPtr);		}
+;{ Description:	Fills in DDAVars structure with pertinent data to	}
+;{		start DDA routine.					}
+;{ Parameters:	x1 = x starting point					}
+;{		y1 = y starting point					}
+;{		x2 = x ending point					}
+;{		y2 = y ending point					}
+;{		DDAVarsPtr = far pointer to DDAVars structure		}
+;{ Returns:	.							}
+;{----------------------------------------------------------------------}
+interpolate	Proc	Far
+
+		uses	si,di
+		arg	srcSize:word, dstSize:word
+
+		mov	cx,dstSize
+		mov	dx,srcSize
+
+		cmp	cx,dx
+		jle	@@Smaller
+		shl	dx,1
+		mov	bp,dx
+		sub	dx,cx
+		mov	bx,dx
+		sub	dx,cx
+@@NextMoveloop1:
+		push	bx
+		push	cx
+		push	dx
+		mov	ax,LOADCODE
+		push	ax
+		call	far ptr writeCode
+		pop	ax
+		mov	ax,STORECODE
+		push	ax
+		call	far ptr writeCode
+		pop	ax
+		pop	dx
+		pop	cx
+		pop	bx
+		dec	cx
+		je	@@exit
+		add	bx,dx
+		jge	@@NextMoveloop1
+@@NextDestloop:
+		push	bx
+		push	cx
+		push	dx
+		mov	ax,STORECODE
+		push	ax
+		call	far ptr writeCode
+		pop	ax
+		pop	dx
+		pop	cx
+		pop	bx
+		dec	cx
+		je	@@exit
+		add	bx,bp
+		jl	@@NextDestloop
+		jmp	@@NextMoveloop1
+
+
+@@Smaller:
+		xchg	cx,dx
+		shl	dx,1
+		mov	bp,dx
+		sub	dx,cx
+		mov	bx,dx
+		sub	dx,cx
+
+@@NextMoveloop2:
+		push	bx
+		push	cx
+		push	dx
+		mov	ax,LOADCODE
+		push	ax
+		call	far ptr writeCode
+		pop	ax
+		mov	ax,STORECODE
+		push	ax
+		call	far ptr writeCode
+		pop	ax
+		pop	dx
+		pop	cx
+		pop	bx
+		dec	cx
+		je	@@exit
+		add	bx,dx
+		jge	@@NextMoveloop2
+@@NextSrcloop:
+		push	bx
+		push	cx
+		push	dx
+		mov	ax,LOADCODE
+		push	ax
+		call	far ptr writeCode
+		pop	ax
+		pop	dx
+		pop	cx
+		pop	bx
+		dec	cx
+		je	@@exit
+		add	bx,bp
+		jl	@@NextSrcloop
+		jmp	@@NextMoveloop2
+
+@@exit:
+		ret		
+
+interpolate	Endp
+
+

@@ -1,0 +1,1486 @@
+;---------------------------------------
+; Genesis Sprite Scaling
+;---------------------------------------
+; Written by Ian Oliver 1991
+;!!	nolist
+	opt	os+,ow+,oz+,v+
+	opt	omq+,osq+,oaq+,op+
+
+	org	0	; not used
+
+	disable	type	; I kept accidentally using it!
+
+MakeBin	equ	0
+
+; Equates and macros
+	include	equs.68k
+	opt	s+
+	include	scaler.h
+	opt	s-
+LowVars	group	bss,org($FFFF0000)
+UpperRAM	equ	$FFFFC000
+HighVars	group	bss,org(UpperRAM),word
+Startup	group	org(0),word
+Tables	group	word
+Code	group
+Scale	group
+SpriteData	group
+Z80Code	group
+Postamble	group
+
+	regs	pc=CodeStart,ssp=StackTop,usp=StackTop,sr=$2700
+
+True	equ	-1
+False	equ	0
+
+	if	~def(External)
+Version	equs	'Internal Version'
+DebugMode	equ	True
+KeepTraps	equ	True
+	else
+Version	equs	'Demo Version 13th June 1991'
+DebugMode	equ	False
+KeepTraps	equ	False
+	endif
+
+StackTop	equ	$01000000
+
+	include	macros.68k
+
+	section	Sect1,Startup
+	include	startup.68k
+
+	if	offset(*)<>$200
+	inform	3,'Header data isn''t 512 bytes long!!'
+	endif
+CodeStart	include	icd_blk4.prg
+	jmp	MyCode
+
+; Low memory tables
+	section	Sect2,Tables
+	include	tables.68k
+; Buffers
+	section	SpriteBuffers,LowVars
+	include	buffers.68k
+; Variables
+	section	TestVars,HighVars
+	include	vars.68k
+
+	section	Test,Code
+MyCode	module
+
+	bsr	SetHard
+
+@AllAgain	bsr	Init
+
+	bsr	Intro
+
+@MainLoop	bsr	DoMenu
+	subq.w	#1,d0
+	bne.s	@NotRunning
+	bsr	RunningDemo
+	bra.s	@AllAgain
+@NotRunning
+@ReRun	sf	KeyHit\w
+	move.w	DemoItem\w,d0
+	subq.w	#2,d0
+	bsr	DoDemo
+@GetKey	move.w	#60*15,d0
+	jsr	WaitKey
+	beq.s	@MainLoop
+; Key was pressed so check for start
+	testhit	KCodeStart
+	bne.s	@MainLoop
+	bra.s	@ReRun
+	modend
+
+NormMenuSetup	module
+	move.w	#CharBase,MenuFont\w
+	move.w	#Pat_ScrollB,MenuBase\w
+	move.w	#Pri+CP0*1,MenuAttr1\w
+	move.w	#Pri+CP0*2,MenuAttr2\w
+	rts
+	modend
+
+DoMenu	module
+
+	bsr	ClearKeys
+
+	lea	@Glist(pc),a0
+	bsr	Gridder
+	lea	@VList(pc),a0
+	bsr	CellCon
+
+	bsr	NormMenuSetup
+	move.w	#1,DemoItem\w
+@ReDo	lea	@DemoMenu(pc),a0
+	bsr	DrawPopUp
+
+@GetKey	move.w	#20*60,d0
+	jsr	WaitKey
+	beq.s	@TimeOut
+	move.w	DemoItem\w,d0
+	testhit	KCodeUp
+	beq.s	@NoUp
+	subq.w	#1,d0
+	bne.s	@Changed
+	moveq	#9,d0
+	bra.s	@Changed
+@NoUp	testhit	KCodeDown
+	beq.s	@NoDown
+	addq.w	#1,d0
+	cmp.w	#9,d0
+	ble.s	@Changed
+	moveq	#1,d0
+@Changed	move.w	d0,DemoItem\w
+	bra.s	@ReDo
+@NoDown	testhit	KCodeA
+	beq.s	@GetKey
+@Exit	rts
+@TimeOut	moveq	#1,d0
+	bra.s	@Exit
+
+@DemoMenu	Menu	10,6,18,11,DemoItem,11
+	MenuTop
+	MenuText @T0
+	MenuText @T1
+	MenuText @T2
+	MenuText @T3
+	MenuText @T4
+	MenuText @T5
+	MenuText @T6
+	MenuText @T7
+	MenuText @T8
+	MenuBottom
+
+@T0	dc.b	'Running demo',0
+@T1	dc.b	'General Scaling',0
+@T2	dc.b	'Zoom',0
+@T3	dc.b	'Sprite output',0
+@T4	dc.b	'Horizontal reflect',0
+@T5	dc.b	'Vertical reflect',0
+@T6	dc.b	'Rotations',0
+@T7	dc.b	'Scrolling',0
+@T8	dc.b	'Special effects',0
+
+@GList	G_BlackOut
+	G_ClearAll
+	G_ClearChars 0,1024
+	G_LoadCset Font_8x8n,CharBase,15,14
+	G_SetPal MenuPal
+	G_SetPal TestPal
+	G_Jumpin
+	G_Term
+
+@VList	CC_SetA0
+	CC_Font	CharBase
+	CC_Attrib Pal1
+	CC_SetXY 5,1
+	CC_LMCurX
+	dc.b	'         Sega Genesis',13
+	dc.b	' Sprite Scaling Demonstration'
+	CC_SetXY 7,19
+	CC_LMCurX
+	dc.b	'        Copyright',13
+	dc.b	' 1991 Sega of America Inc.',13
+	dc.b	'       Written by',13
+	dc.b	'Realtime Games Software Ltd'
+	CC_Term
+
+	modend
+
+RunningDemo	module
+	sf	KeyHit\w
+@ReDemo	moveq	#0,d0
+@EachDemo	move.w	d0,WhichDemo\w
+	bsr	DoDemo
+	tst.b	KeyHit\w
+	bne.s	@Exit
+	moveq	#30,d0
+	jsr	Wait
+	move.w	WhichDemo\w,d0
+	addq.w	#1,d0
+	cmp.w	#8,d0
+	blt.s	@EachDemo
+@Exit	rts
+	modend
+
+DoDemo	module
+	move.w	d0,-(sp)
+	add.w	d0,d0
+	add.w	d0,d0
+	move.l	DemoTab(pc,d0.w),a0
+	jsr	(a0)
+	move.w	(sp)+,d0
+	rts
+DemoTab	dc.l	Test1
+	dc.l	Test2
+	dc.l	Test3
+	dc.l	Test4
+	dc.l	Test5
+	dc.l	Test6
+	dc.l	Test7
+	dc.l	Test8
+	modend
+
+; Text and stuff
+Intro	module
+	bsr	ClearKeys
+
+	lea	@Glist(pc),a0
+	bsr	Gridder
+
+	bsr	ClearKeys
+	bsr	ClearChars
+
+	lea	ScaleVars,a6
+	move.l	#LogoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#112,SrcWidth(a6)
+	move.w	#48,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	move.l	#InputBuffer,SrcDataPtr(a6)
+
+	move.w	#0,SrcXPos(a6)
+	move.w	#0,SrcYPos(a6)
+	move.w	#112,SrcXSize(a6)
+	move.w	#32,SrcYSize(a6)
+	move.w	#112,SrcWidth(a6)
+	move.w	#32,SrcHeight(a6)
+	move.w	#20,DestWidth(a6)
+	move.w	#4,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#2,FillAction(a6)
+	move.w	#0,VRAMAddr(a6)
+	sf	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+	sf	XFlip(a6)
+	sf	DFlip(a6)
+	move.l	#OutputBuffer,DestDataPtr(a6)
+
+
+; Scale logo and draw
+	move.w	#288,d0
+	move.w	#228,d1
+	move.w	#256,d2
+	moveq	#0,d3
+	bsr	@DrawLogo
+
+	move.w	#30,d0
+	jsr	Wait
+; Build palette list (This is all crufty code)
+	moveq	#-16,d0
+	lea	OutputBuffer+16,a2
+	move.b	#0,0(a2,d0.w)
+	addq.w	#1,d0
+	moveq	#9,d1
+	moveq	#$26,d2
+@0	move.b	d2,0(a2,d0.w)
+	addq.w	#1,d0
+	subq.b	#2,d2
+	dbra	d1,@0
+
+; Do palette tricks
+	lea	SegaPal2,a3
+	moveq	#19,d7
+	moveq	#0,d1
+@1	moveq	#-16,d0
+	bsr	FlyWait
+	bsr	FlyWait
+	bsr	FlyWait
+	st	VDPLock\w
+	move.l	#$C0040000,VDPControl
+	moveq	#10,d6
+@2	move.b	0(a2,d0.w),d1
+	addq.b	#2,d1
+	cmp.b	#$28,d1
+	bne.s	@3
+	clr.b	d1
+@3	move.b	d1,(a2,d0.w)
+	addq.b	#1,d0
+	move.w	0(a3,d1.w),VDPData
+	dbra	d6,@2
+	dbra	d7,@1
+	sf	VDPLock\w
+
+; Now we can start getting flashy!
+
+; Tilt back and fly away
+	move.w	#288,d0
+	move.w	#228,d1
+	move.w	#256,d2
+	moveq	#0,d3
+
+	moveq	#4-1,d7
+@Tilt	add.w	#2048,d3
+	bsr	@DrawLogo
+	dbra	d7,@Tilt
+
+	moveq	#24-1,d7
+@Fly1	add.w	#16,d2
+	sub.w	#4,d1
+	bsr	@DrawLogo
+	dbra	d7,@Fly1
+; Back to zero Y
+	moveq	#24-1,d7
+@Shift	add.w	#4,d1
+	sub.w	#2048,d3
+	bsr	@DrawLogo
+	dbra	d7,@Shift
+
+; Fly back in spinning
+	moveq	#24-1,d7
+@Fly2	sub.w	#16,d2
+	sub.w	#2048,d3
+	bsr	@DrawLogo
+	dbra	d7,@Fly2
+
+	moveq	#64,d7
+@Spin	sub.w	#2048,d3
+	bsr	@DrawLogo
+	dbra	d7,@Spin
+; Get up right
+@Right	sub.w	#2048,d3
+	bsr	@DrawLogo
+	tst.w	d3
+	bne.s	@Right
+
+	moveq	#60,d0
+	jsr	WaitKey
+
+	lea	@Glist(pc),a0
+	bsr	Gridder
+	rts
+
+
+; Entry :
+;   d0 - X position
+;   d1 - Y position
+;   d2 - Z position (256 is minimum distance)
+;   d3 - angle
+@DrawLogo	module
+
+	movem.w	d0-d3/d7,-(sp)
+	sub.w	#80,d0
+	sub.w	#16,d1
+	movem.w	d0-d1,TestX\w
+; Get sin and cos of angle
+	and.w	#$F800,d3
+	lsr.w	#8,d3
+	lsr.w	#1,d3
+	lea	@Trig(pc),a0
+	movem.w	0(a0,d3.w),d3-d4
+; Do depth calc.
+	muls	#32,d4	; scale Z delta by size
+	asr.w	#8,d4
+; Get height of logo
+	sf	YFlip(a6)
+	muls	#32,d3
+	bpl.s	@IsPos
+	neg.l	d3
+	neg.w	d4
+	st	YFlip(a6)
+@IsPos	divs	d2,d3
+	bne.s	@NotZero
+	moveq	#1,d3
+@NotZero	move.w	d3,DestYSize(a6)
+	neg.w	d3
+	add.w	#32,d3
+	lsr.w	#1,d3
+	add.w	d3,TestY\w	; displace in Y
+; Work out top width
+	move.w	d2,d0
+	add.w	d4,d0	; top distance
+	move.l	#112*256,d1
+	divs	d0,d1
+	move.w	d1,DestXSize1(a6)
+	neg.w	d1
+	add.w	#160,d1
+	lsr.w	#1,d1
+	move.w	d1,DestXPos1(a6)
+	move.w	d2,d0
+	sub.w	d4,d0	; bottom distance
+	move.l	#112*256,d1
+	divs	d0,d1
+	move.w	d1,DestXSize2(a6)
+	neg.w	d1
+	add.w	#160,d1
+	lsr.w	#1,d1
+	move.w	d1,DestXPos2(a6)
+; Scale logo and draw
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	bsr	CopyTest2
+	bsr	FlyWait
+	bsr	MakeSprite2
+
+	eor.w	#4096,VRAMAddr(a6)
+	movem.w	(sp)+,d0-d3/d7
+	rts
+
+@Trig	dc.w	256,0
+	dc.w	251,50
+	dc.w	237,98
+	dc.w	213,142
+	dc.w	181,181
+	dc.w	142,213
+	dc.w	98,237
+	dc.w	50,251
+	dc.w	0,256
+	dc.w	-50,251
+	dc.w	-98,237
+	dc.w	-142,213
+	dc.w	-181,181
+	dc.w	-213,142
+	dc.w	-237,98
+	dc.w	-251,50
+	dc.w	-256,0
+	dc.w	-251,-50
+	dc.w	-237,-98
+	dc.w	-213,-142
+	dc.w	-181,-181
+	dc.w	-142,-213
+	dc.w	-98,-237
+	dc.w	-50,-251
+	dc.w	0,-256
+	dc.w	50,-251
+	dc.w	98,-237
+	dc.w	142,-213
+	dc.w	181,-181
+	dc.w	213,-142
+	dc.w	237,-98
+	dc.w	251,-50
+	modend
+
+@GList	G_BlackOut
+	G_ClearAll
+	G_ClearChars 0,1024
+	G_LoadCset Font_8x8n,CharBase,15,14
+	G_SetPal MenuPal
+	G_SetPal SegaPal
+	G_Jumpin
+	G_Term
+
+@GList2	G_SetPal TestPal
+	G_Term
+
+	modend
+
+; General zoom
+Test1	module
+
+	lea	@GList(pc),a0
+	bsr	Gridder
+	lea	@VList(pc),a0
+	bsr	CellCon
+
+@Again	bsr	ClearKeys
+	bsr	ClearChars
+
+	lea	ScaleVars,a6
+	move.l	#CoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	move.l	#InputBuffer,SrcDataPtr(a6)
+
+	move.w	#0,SrcXPos(a6)
+	move.w	#0,SrcYPos(a6)
+	move.w	#144,SrcXSize(a6)
+	move.w	#136,SrcYSize(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	move.w	#128,DestXSize(a6)
+	move.w	#128,DestYSize(a6)
+	move.w	#16,DestWidth(a6)
+	move.w	#16,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#2,FillAction(a6)
+	move.w	#0,VRAMAddr(a6)
+	st	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+	sf	XFlip(a6)
+	sf	YFlip(a6)
+	sf	DFlip(a6)
+
+	move.w	#208,d0	; x
+	move.w	#158,d1	; y
+	bsr	MakeSprite
+	move.l	#OutputBuffer,DestDataPtr(a6)
+
+	moveq	#31-1,d7
+@EachSize2	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+
+	lea	ScaleVars,a6
+	bsr	CopyTest
+	move.w	(a7)+,d7
+	subq.w	#4,DestXSize(a6)
+	subq.w	#4,DestYSize(a6)
+	dbra	d7,@EachSize2
+
+	sf	AutoSend(a6)
+
+	moveq	#15-1,d7
+@EachSize	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	lea	ScaleVars,a6
+	bsr	CopyTest
+	move.w	(a7)+,d7
+	addq.w	#8,DestXSize(a6)
+	addq.w	#8,DestYSize(a6)
+	dbra	d7,@EachSize
+
+	rts
+
+@GList	G_ClearAll
+	G_Term
+@VList	CC_Attrib Pal1
+	CC_SetXY 4,21
+	CC_LMCurX
+	dc.b	'  Shrink an object to any size'
+	CC_Term
+
+	rts
+	modend
+
+; Zoom in on eye
+Test2	module
+
+	lea	@GList(pc),a0
+	bsr	Gridder
+	lea	@VList(pc),a0
+	bsr	CellCon
+
+@Again	bsr	ClearKeys
+	bsr	ClearChars
+
+	lea	ScaleVars,a6
+	move.l	#CoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	move.l	#InputBuffer,SrcDataPtr(a6)
+	move.w	#0,SrcXPos(a6)
+	move.w	#0,SrcYPos(a6)
+	move.w	#128,SrcXSize(a6)
+	move.w	#128,SrcYSize(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	move.w	#128,DestXSize(a6)
+	move.w	#128,DestYSize(a6)
+	move.w	#16,DestWidth(a6)
+	move.w	#16,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#1,FillAction(a6)
+	st	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+	sf	XFlip(a6)
+	sf	YFlip(a6)
+
+	move.w	#208,d0	; x
+	move.w	#158,d1	; y
+	bsr	MakeSprite
+	move.l	#OutputBuffer,DestDataPtr(a6)
+
+	moveq	#15-1,d7
+@EachSize	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	lea	ScaleVars,a6
+	bsr	CopyTest
+@NextSize	move.w	(a7)+,d7
+	sub.w	#8,SrcXSize(a6)
+	sub.w	#8,SrcYSize(a6)
+	addq.w	#4,SrcXPos(a6)
+	addq.w	#2,SrcYPos(a6)
+@Skip	dbra	d7,@EachSize
+
+	rts
+
+@GList	G_ClearAll
+	G_Term
+@VList	CC_Attrib Pal1
+	CC_SetXY 4,21
+	CC_LMCurX
+	dc.b	'Zoom in on any part of an object'
+	CC_Term
+	modend
+
+; Sprite moving
+Test3	module
+
+	lea	@GList(pc),a0
+	bsr	Gridder
+	lea	@VList(pc),a0
+	bsr	CellCon
+
+@Again	bsr	ClearKeys
+	bsr	ClearChars
+
+	move.l	#CoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	lea	ScaleVars,a6
+	move.l	#InputBuffer,SrcDataPtr(a6)
+	move.w	#32,SrcXPos(a6)
+	move.w	#0,SrcYPos(a6)
+	move.w	#64,SrcXSize(a6)
+	move.w	#64,SrcYSize(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	move.w	#128,DestXSize(a6)
+	move.w	#128,DestYSize(a6)
+	move.w	#16,DestWidth(a6)
+	move.w	#16,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#1,FillAction(a6)
+	st	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+	sf	XFlip(a6)
+	sf	YFlip(a6)
+
+	move.w	#208,d0	; x
+	move.w	#158,d1	; y
+	bsr	MakeSprite
+	move.l	#OutputBuffer,DestDataPtr(a6)
+
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	lea	ScaleVars,a6
+	bsr	CopyTest
+
+	move.w	#208,TestX\w
+	move.w	#158,TestY\w
+	st	DirX\w
+	st	DirY\w
+
+	move.w	#100,d7
+@EachPos	move.w	d7,-(a7)
+
+	move.w	TestX\w,d0
+	tst.b	DirX\w
+	beq.s	@Neg1
+	addq.w	#8,d0
+	cmp.w	#320,d0
+	blt.s	@OK1
+	not.b	DirX\w
+	bra.s	@OK1
+@Neg1	subq.w	#8,d0
+	cmp.w	#100,d0
+	bgt.s	@OK1
+	not.b	DirX\w
+@OK1	move.w	d0,TestX\w
+
+	move.w	TestY\w,d1
+	tst.b	DirY\w
+	beq.s	@Neg2
+	addq.w	#8,d1
+	cmp.w	#320,d1
+	blt.s	@OK2
+	not.b	DirY\w
+	bra.s	@OK2
+@Neg2	subq.w	#8,d1
+	cmp.w	#100,d1
+	bgt.s	@OK2
+	not.b	DirY\w
+@OK2	move.w	d1,TestY\w
+	bsr	FlyWait
+	bsr	MakeSprite
+
+	move.w	(a7)+,d7
+	dbra	d7,@EachPos
+
+	rts
+
+@GList	G_ClearAll
+	G_Term
+@VList	CC_Attrib Pal1
+	CC_SetXY 4,21
+	CC_LMCurX
+	dc.b	'  Scaler produces sprites!'
+	CC_Term
+
+	rts
+
+	pushs
+	section	TestVars,HighVars
+TestX	ds.w	1
+TestY	ds.w	1
+DirX	ds.b	1
+DirY	ds.b	1
+	pops
+
+	modend
+
+; Horizontal shrink and reflect
+Test4	module
+
+	lea	@GList(pc),a0
+	bsr	Gridder
+	lea	@VList(pc),a0
+	bsr	CellCon
+
+@Again	bsr	ClearKeys
+	bsr	ClearChars
+
+	move.l	#CoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	lea	ScaleVars,a6
+	move.l	#InputBuffer,SrcDataPtr(a6)
+
+	move.w	#0,SrcXPos(a6)
+	move.w	#0,SrcYPos(a6)
+	move.w	#144,SrcXSize(a6)
+	move.w	#136,SrcYSize(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	move.w	#128,DestYSize(a6)
+	move.w	#16,DestWidth(a6)
+	move.w	#16,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#2,FillAction(a6)
+	move.w	#0,VRAMAddr(a6)
+	st	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+	sf	YFlip(a6)
+	sf	DFlip(a6)
+	sf	XFlip(a6)	
+
+	move.w	#208,d0
+	move.w	#158,d1	; y
+	bsr	MakeSprite
+
+	move.l	#OutputBuffer,DestDataPtr(a6)
+	moveq	#3,d7
+@EachFlip	move.w	d7,-(a7)
+
+	move.w	#128,DestXSize(a6)
+	moveq	#7-1,d7
+@EachSize2	move.w	d7,-(a7)
+
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+
+	lea	ScaleVars,a6
+	bsr	CopyTest
+
+	move.w	(a7)+,d7
+	sub.w	#16,DestXSize(a6)
+	dbra	d7,@EachSize2
+
+	not.b	XFlip(a6)
+	moveq	#7-1,d7
+@EachSize	move.w	d7,-(a7)
+
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	lea	ScaleVars,a6
+	bsr	CopyTest
+
+	move.w	(a7)+,d7
+	add.w	#16,DestXSize(a6)
+	dbra	d7,@EachSize
+
+	move.w	(a7)+,d7
+	dbra	d7,@EachFlip
+
+	rts
+
+@GList	G_ClearAll
+	G_Term
+@VList	CC_Attrib Pal1
+	CC_SetXY 4,21
+	CC_LMCurX
+	dc.b	'Horizontal shrink and reflect'
+	CC_Term
+
+	rts
+	modend
+
+; Vertical shrink and reflect
+Test5	module
+
+	lea	@GList(pc),a0
+	bsr	Gridder
+	lea	@VList(pc),a0
+	bsr	CellCon
+
+@Again	bsr	ClearKeys
+	bsr	ClearChars
+
+	move.l	#CoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	lea	ScaleVars,a6
+	move.l	#InputBuffer,SrcDataPtr(a6)
+
+	move.w	#0,SrcXPos(a6)
+	move.w	#0,SrcYPos(a6)
+	move.w	#144,SrcXSize(a6)
+	move.w	#136,SrcYSize(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	move.w	#128,DestYSize(a6)
+	move.w	#16,DestWidth(a6)
+	move.w	#16,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#2,FillAction(a6)
+	move.w	#0,VRAMAddr(a6)
+	st	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+	sf	YFlip(a6)
+	sf	DFlip(a6)
+	sf	XFlip(a6)	
+
+	move.w	#208,d0
+	move.w	#158,d1	; y
+	bsr	MakeSprite
+
+	move.l	#OutputBuffer,DestDataPtr(a6)
+	moveq	#3,d7
+@EachFlip	move.w	d7,-(a7)
+
+	move.w	#128,DestXSize(a6)
+	moveq	#7-1,d7
+@EachSize2	move.w	d7,-(a7)
+
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+
+	lea	ScaleVars,a6
+	bsr	CopyTest
+
+	move.w	(a7)+,d7
+	sub.w	#16,DestYSize(a6)
+	dbra	d7,@EachSize2
+
+	not.b	YFlip(a6)
+	moveq	#7-1,d7
+@EachSize	move.w	d7,-(a7)
+
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	lea	ScaleVars,a6
+	bsr	CopyTest
+
+	move.w	(a7)+,d7
+	add.w	#16,DestYSize(a6)
+	dbra	d7,@EachSize
+
+	move.w	(a7)+,d7
+	dbra	d7,@EachFlip
+
+	rts
+
+@GList	G_ClearAll
+	G_Term
+@VList	CC_Attrib Pal1
+	CC_SetXY 4,21
+	CC_LMCurX
+	dc.b	' Vertical shrink and reflect'
+	CC_Term
+
+	rts
+	modend
+
+; Rotations
+Test6	module
+
+	lea	@GList(pc),a0
+	bsr	Gridder
+	lea	@VList(pc),a0
+	bsr	CellCon
+
+@Again	bsr	ClearKeys
+	bsr	ClearChars
+
+	move.l	#CoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	lea	ScaleVars,a6
+	move.l	#InputBuffer,SrcDataPtr(a6)
+
+	move.w	#0,SrcXPos(a6)
+	move.w	#0,SrcYPos(a6)
+	move.w	#144,SrcXSize(a6)
+	move.w	#136,SrcYSize(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	move.w	#128,DestYSize(a6)
+	move.w	#16,DestWidth(a6)
+	move.w	#16,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#2,FillAction(a6)
+	move.w	#0,VRAMAddr(a6)
+	st	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+
+	move.w	#208,d0
+	move.w	#158,d1	; y
+	bsr	MakeSprite
+
+	move.l	#OutputBuffer,DestDataPtr(a6)
+
+	move.w	#10,TestX\w	; delay
+@Each2	bsr	@Do2
+	subq.w	#1,TestX\w
+	bpl.s	@Each2
+
+	clr.w	TestX\w
+	bsr	@Do2
+	bsr	@Do2
+
+	rts
+
+@Do2	moveq	#1-1,d7
+@EachTime	sf	YFlip(a6)
+	sf	DFlip(a6)
+	sf	XFlip(a6)	
+	bsr	@Doit
+
+	st	YFlip(a6)
+	st	DFlip(a6)
+	sf	XFlip(a6)	
+	bsr	@Doit
+
+	st	YFlip(a6)
+	sf	DFlip(a6)
+	st	XFlip(a6)	
+	bsr	@Doit
+
+	sf	YFlip(a6)
+	st	DFlip(a6)
+	st	XFlip(a6)	
+	bsr	@Doit
+
+	dbra	d7,@EachTime
+	rts
+
+@Doit	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	bsr	CopyTest
+	move.w	TestX\w,d6
+	beq.s	@Exit
+	subq.w	#1,d6
+@Loop	bsr	FlyWait
+	dbra	d6,@Loop
+@Exit	rts
+
+@GList	G_ClearAll
+	G_Term
+@VList	CC_Attrib Pal1
+	CC_SetXY 4,21
+	CC_LMCurX
+	dc.b	'     90 degree rotation'
+	CC_Term
+
+	rts
+	modend
+
+; Scroll around a large object
+Test7	module
+
+	lea	@GList(pc),a0
+	bsr	Gridder
+	lea	@VList(pc),a0
+	bsr	CellCon
+
+@Again	bsr	ClearKeys
+	bsr	ClearChars
+
+	lea	ScaleVars,a6
+	move.l	#CoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	move.l	#InputBuffer,SrcDataPtr(a6)
+	move.w	#16,SrcXSize(a6)
+	move.w	#16,SrcYSize(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	move.w	#128,DestXSize(a6)
+	move.w	#128,DestYSize(a6)
+	move.w	#16,DestWidth(a6)
+	move.w	#16,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#1,FillAction(a6)
+	st	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+	sf	XFlip(a6)
+	sf	YFlip(a6)
+	sf	DFlip(a6)
+
+	move.w	#208,d0	; x
+	move.w	#158,d1	; y
+	bsr	MakeSprite
+	move.l	#OutputBuffer,DestDataPtr(a6)
+
+	move.w	#48,TestX\w
+	move.w	#24,TestY\w
+
+	moveq	#8,d7
+	moveq	#1,d1
+	moveq	#0,d2
+	bsr	@Scroll
+	moveq	#8,d7
+	moveq	#0,d1
+	moveq	#1,d2
+	bsr	@Scroll
+	moveq	#8,d7
+	moveq	#-1,d1
+	moveq	#0,d2
+	bsr	@Scroll
+	moveq	#8,d7
+	moveq	#0,d1
+	moveq	#-1,d2
+	bsr	@Scroll
+	moveq	#8,d7
+	moveq	#1,d1
+	moveq	#1,d2
+	bsr	@Scroll
+	moveq	#8,d7
+	moveq	#-1,d1
+	moveq	#0,d2
+	bsr	@Scroll
+	moveq	#8,d7
+	moveq	#1,d1
+	moveq	#-1,d2
+	bsr	@Scroll
+	moveq	#8,d7
+	moveq	#-1,d1
+	moveq	#0,d2
+	bsr	@Scroll
+
+	rts
+
+@Scroll	subq.w	#1,d7
+@EachSize	move.w	d7,-(a7)
+	move.w	TestX\w,SrcXPos(a6)
+	move.w	TestY\w,SrcYPos(a6)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	bsr	CopyTest
+@NextSize	move.w	(a7)+,d7
+	add.w	d1,TestX\w
+	add.w	d2,TestY\w
+	dbra	d7,@EachSize
+	rts
+
+@GList	G_ClearAll
+	G_Term
+@VList	CC_Attrib Pal1
+	CC_SetXY 4,21
+	CC_LMCurX
+	dc.b	'  Scroll around a large object'
+	CC_Term
+	modend
+
+; Timing check
+TimeIt	module
+
+	lea	@GList(pc),a0
+	bsr	Gridder
+
+@Again	lea	@VList(pc),a0
+	bsr	CellCon
+	bsr	ClearKeys
+	bsr	ClearChars
+
+	lea	ScaleVars,a6
+	move.l	#CoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	lea	ScaleVars,a6
+	move.l	#InputBuffer,SrcDataPtr(a6)
+
+	move.w	#0,SrcXPos(a6)
+	move.w	#0,SrcYPos(a6)
+	move.w	#64,SrcXSize(a6)
+	move.w	#64,SrcYSize(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	move.w	#128,DestXSize(a6)
+	move.w	#128,DestYSize(a6)
+	move.w	#16,DestWidth(a6)
+	move.w	#16,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#2,FillAction(a6)
+	move.w	#0,VRAMAddr(a6)
+	st	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+	sf	XFlip(a6)
+	sf	YFlip(a6)
+	sf	DFlip(a6)
+
+	move.w	#208,d0	; x
+	move.w	#158,d1	; y
+	bsr	MakeSprite
+	move.l	#OutputBuffer,DestDataPtr(a6)
+
+	move.w	#100-1,d7
+@EachTime	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+
+	move.w	(a7)+,d7
+	dbra	d7,@EachTime
+
+	lea	@VList2(pc),a0
+	bsr	CellCon
+
+	bsr	CopyTest
+
+	rts
+
+@GList	G_ClearAll
+	G_Term
+@VList	CC_Attrib Pal1
+	CC_SetXY 4,21
+	CC_LMCurX
+	dc.b	'  Timing Check - Start'
+	CC_Term
+
+@VList2	CC_Attrib Pal1
+	CC_SetXY 4,21
+	dc.b	'  Timing Check - End  '
+	CC_Term
+
+	rts
+	modend
+
+; Trapezium check
+Test8	module
+
+	lea	@GList(pc),a0
+	bsr	Gridder
+
+	lea	@VList(pc),a0
+	bsr	CellCon
+	bsr	ClearKeys
+	bsr	ClearChars
+
+@Again	lea	ScaleVars,a6
+	move.l	#CoData,SrcDataPtr(a6)
+	move.l	#InputBuffer,DestDataPtr(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	moveq	#SSC_Convert,d0
+	bsr	SpriteScaler
+
+	move.l	#InputBuffer,SrcDataPtr(a6)
+
+	move.w	#0,SrcXPos(a6)
+	move.w	#0,SrcYPos(a6)
+	move.w	#144,SrcXSize(a6)
+	move.w	#136,SrcYSize(a6)
+	move.w	#144,SrcWidth(a6)
+	move.w	#136,SrcHeight(a6)
+	move.w	#0,DestXPos1(a6)
+	move.w	#0,DestXPos2(a6)
+	move.w	#128,DestXSize1(a6)
+	move.w	#128,DestXSize2(a6)
+	move.w	#128,DestYSize(a6)
+	move.w	#16,DestWidth(a6)
+	move.w	#16,DestHeight(a6)
+	move.w	#1,OutputType(a6)
+	move.w	#1,FillAction(a6)
+	move.w	#0,VRAMAddr(a6)
+	sf	DestIsRect(a6)
+	sf	AutoSend(a6)
+	sf	AutoConvert(a6)
+	sf	XFlip(a6)
+	sf	YFlip(a6)
+	sf	DFlip(a6)
+
+	move.w	#208,d0	; x
+	move.w	#158,d1	; y
+	bsr	MakeSprite
+	move.l	#OutputBuffer,DestDataPtr(a6)
+
+; Shrink
+	move.w	#16-1,d7
+@Each0	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	bsr	CopyTest
+	subq.w	#4,DestXSize1(a6)
+	subq.w	#4,DestXSize2(a6)
+	subq.w	#4,DestYSize(a6)
+	move.w	(a7)+,d7
+	dbra	d7,@Each0
+
+; Push top right
+	move.w	#8-1,d7
+@Each1	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	bsr	CopyTest
+	addq.w	#8,DestXPos1(a6)
+	move.w	(a7)+,d7
+	dbra	d7,@Each1
+; Push bottom right
+	move.w	#8-1,d7
+@Each2	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	bsr	CopyTest
+	addq.w	#8,DestXPos2(a6)
+	move.w	(a7)+,d7
+	dbra	d7,@Each2
+; Stretch left
+	move.w	#8-1,d7
+@Each3	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	bsr	CopyTest
+	subq.w	#8,DestXPos1(a6)
+	subq.w	#8,DestXPos2(a6)
+	addq.w	#8,DestXSize1(a6)
+	addq.w	#8,DestXSize2(a6)
+	move.w	(a7)+,d7
+	dbra	d7,@Each3
+; Narrow top and grow in Y
+	move.w	#15-1,d7
+@Each4	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	bsr	CopyTest
+	add.w	#4,DestXPos1(a6)
+	sub.w	#8,DestXSize1(a6)
+	add.w	#4,DestYSize(a6)
+	move.w	(a7)+,d7
+	dbra	d7,@Each4
+; Grow top and narrow bottom
+	move.w	#15-1,d7
+@Each5	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	bsr	CopyTest
+	add.w	#4,DestXPos2(a6)
+	sub.w	#8,DestXSize2(a6)
+	sub.w	#4,DestXPos1(a6)
+	add.w	#8,DestXSize1(a6)
+	move.w	(a7)+,d7
+	dbra	d7,@Each5
+; Zoom in on eye
+	moveq	#12-1,d7
+@Each5b	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	lea	ScaleVars,a6
+	bsr	CopyTest
+	move.w	(a7)+,d7
+	sub.w	#8,SrcXSize(a6)
+	sub.w	#8,SrcYSize(a6)
+	addq.w	#3,SrcXPos(a6)
+	addq.w	#1,SrcYPos(a6)
+	dbra	d7,@Each5b
+; Scroll right
+	moveq	#12-1,d7
+@Each6	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	lea	ScaleVars,a6
+	bsr	CopyTest
+	move.w	(a7)+,d7
+	sub.w	#4,SrcXPos(a6)
+	dbra	d7,@Each6
+
+	move.w	#144,SrcXSize(a6)
+	clr.w	SrcXPos(a6)
+	move.w	#2,SrcYSize(a6)
+	clr.w	SrcYPos(a6)
+; 'Spurt' up
+	moveq	#18-1,d7
+@Each8	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	lea	ScaleVars,a6
+	bsr	CopyTest
+	move.w	(a7)+,d7
+	add.w	#8,SrcYSize(a6)
+	dbra	d7,@Each8
+; Widen again
+	moveq	#15-1,d7
+@Each9	move.w	d7,-(a7)
+	moveq	#SSC_Scale,d0
+	bsr	SpriteScaler
+	lea	ScaleVars,a6
+	bsr	CopyTest
+	move.w	(a7)+,d7
+	add.w	#8,DestXSize2(a6)
+	subq.w	#4,DestXPos2(a6)
+	dbra	d7,@Each9
+
+	rts
+
+@GList	G_ClearAll
+	G_Term
+@VList	CC_Attrib Pal1
+	CC_SetXY 4,21
+	CC_LMCurX
+	dc.b	'Shear and perspective effects'
+	CC_Term
+
+	rts
+	modend
+
+
+ClearChars	module
+	bsr	FlyWait
+	lea	@Glist(pc),a0
+	bsr	Gridder
+	rts
+@GList	G_ClearChars 0,320
+	G_Term
+	modend
+
+CopyTest2	module
+	movem.l	d0-d2/a6,-(a7)
+	bra.s	@Join
+CopyTest	movem.l	d0-d2/a6,-(a7)
+; Copy to VRAM
+	bsr	FlyWait
+@Join	move.w	VRAMAddr(a6),d0
+	lea	ScaleVars,a6
+	move.w	DestWidth(a6),d2
+	mulu	DestHeight(a6),d2
+	lsl.w	#5,d2
+	move.l	#OutputBuffer,d3
+	bsr	Move2VRAM
+	movem.l	(a7)+,d0-d2/a6
+	rts
+	modend
+
+MakeSprite2	move.w	TestX\w,d0
+	move.w	TestY\w,d1
+; Input
+;   d0 - x
+;   d1 - y
+MakeSprite	module
+; Setup sprite offset data
+	movem.w	d0-d1,-(a7)
+	move.l	DestDataPtr(a6),-(a7)
+	move.l	#SprBuff1,DestDataPtr(a6)
+	moveq	#SSC_MakeGrid,d0
+	bsr	SpriteScaler
+	move.l	(a7)+,DestDataPtr(a6)
+	movem.w	(a7)+,d0-d1
+; build sprite
+	lea	SprBuff1,a0
+	lea	SprBuff2,a1
+	move.w	VRAMAddr(a6),d2
+	lsr.w	#5,d2	; cell number
+	moveq	#1,d3	; sprite link number
+; start building
+	move.w	(a0)+,d7
+
+	subq.w	#1,d7
+@EachSprite	move.w	(a0)+,d4	; size
+	lsl.w	#8,d4
+	move.w	(a0)+,d6	; cell (add attribute to this)
+	add.w	d2,d6
+	move.w	(a0)+,d5	; VPOS
+	add.w	d1,d5
+	move.w	d5,(a1)+
+
+	add.w	d3,d4
+	move.w	d4,(a1)+	; size and link
+
+	move.w	d6,(a1)+	; cell
+
+	move.w	(a0)+,d5	; HPOS
+	add.w	d0,d5
+	move.w	d5,(a1)+
+
+	addq.w	#1,d3
+
+@NextSprite	dbra	d7,@EachSprite
+; Fix last link
+	clr.b	-5(a1)
+; copy sprite to VRAM
+	move.l	#SprBuff2,d3
+	move.w	#1024,d2
+	move.w	#SpriteAttributes,d0
+	bsr	Move2VRAM
+	rts
+	modend
+
+Init	module
+	moveq	#SSC_Init,d0
+	bsr	SpriteScaler
+	rts
+	modend
+	
+	include	genhard.68k
+	include	except.68k
+	include	gridder.68k
+	include	menus.68k
+
+	dc.l	ScaleVars
+	include	scaler.68k
+;SpriteScaler	incbin	scaler.bin
+
+	if	offset(*)>32767
+	inform	3,'Out of word ROM'
+	endif
+
+; Only data after here
+	section	Sect3,SpriteData
+CoData	incbin	co.bin
+LogoData	incbin	logo.bin
+
+; Z80 stuff
+	section	Z80,Z80Code
+Z80Prog	hex	C30000
+Z80ProgEnd
+
+; Second copyright message
+	section	Sect4,Postamble
+	dc.b	'CCooppyyrriigghhtt  11999900/11999911  RReeaallttiimmee  GGaammeess  SSooffttwwaarree  LLttdd'
+
+

@@ -1,0 +1,153 @@
+
+Sierra Systems ASM68K 2.10     shell.a               4/23/93 13:31  Page    1
+
+   1 T                          *
+   2 T                          *	File:		SHELL.A
+   3 T                          *
+   4 T                          *	Contains:	This file is the basic low memory stuff that a Genesis
+   5 T                          *		needs to have to handle exceptions.  It also specifies the
+   6 T                          *		required data at location $100 and the code to call the C
+   7 T                          *		routine shellmain().  Note: SRAM($ff0000-$ffffff) is erased
+   8 T                          *		before calling shellmain().
+   9 T                          *
+  10 T                          *	Written by:	Burt Sloane & Randel B. Reiss of Technopop
+  11 T                          *
+  12 T                          *	Copyright:	c 1990 by Sega of America, Inc., all rights reserved.
+  13 T                          *
+  14 T                          *	Change History:
+  15 T                          *
+  16 T                          *	To Do:
+  17 T                          *
+  18 T                          *
+  19 T                          * This is the basic page 0-2 code for any ROM that is mostly C
+  20 T                          *
+  21 T                          *	OPT	E,CASE
+  22 A                          	ORG	$0
+       SECTION: ORG SECTION (ORG 00000000)
+  23 A                          	XREF	_shellmain
+  24 A                          	XREF	_eraseVRAM
+  25 A                          	XREF	_eraseCRAM
+  26 A                          	XREF	_eraseVSRAM
+  27 A                          	XREF	_sounddataptr
+  28 A                          	XREF	_sounddataend
+  29 A                          *
+  30 A 00000000 00FF 8000       	dc.l	$ff8000
+  31 A 00000004 0000 0202       	dc.l	start
+  32 A 00000008 0000_0060       	dcb.l	24,$200
+  33 A 00000068 0000 0200       	dc.l	excdeath		; ext int
+  34 A 0000006C 0000 0200       	dc.l	excdeath
+  35 A 00000070 0000 0200       	dc.l	excdeath		; H int
+  36 A 00000074 0000 0200       	dc.l	excdeath
+  37 A 00000078 0000 0200       	dc.l	excdeath		; V int
+  38 A 0000007C 0000_0084       	dcb.l	33,$200
+  39 A                          *
+  40 A                          	ORG	$0100
+       SECTION: ORG SECTION (ORG 00000100)
+  41 A                          *
+  42 A 00000100 5345 4741 204D  	dc.b	'SEGA MEGA DRIVE '
+                4547 4120 4452 
+                4956 4520 
+  43 A 00000110 2843 2953 4547  	dc.b	'(C)SEGA 1990.MAY'
+                4120 3139 3930 
+                2E4D 4159 
+  44 A 00000120 5468 6520 5465  	dc.b	'The Technopop Game'
+                6368 6E6F 706F 
+                7020 4761 6D65 
+  45 A 00000132 0000_001E       	dcb.b	$150-*,' '
+  46 A                          	ORG	$0150
+       SECTION: ORG SECTION (ORG 00000150)
+  47 A 00000150 5465 6368 6E6F  	dc.b	'Technopop for overseas'
+                706F 7020 666F 
+                7220 6F76 6572 
+                7365 6173 
+  48 A 00000166 0000_001A       	dcb.b	$180-*,' '
+
+Sierra Systems ASM68K 2.10     shell.a               4/23/93 13:31  Page    2
+
+  49 A                          	ORG	$0180
+       SECTION: ORG SECTION (ORG 00000180)
+  50 A 00000180 474D 2030 3030  	dc.b	'GM 00000000-00'
+                3030 3030 302D 
+                3030 
+  51 A 0000018E 1234            	dc.w	$1234
+  52 A 00000190 4F4A 2020 2020  	dc.b	'OJ              '
+                2020 2020 2020 
+                2020 2020 
+  53 A 000001A0 0000 0000       	dc.l	$00000000,$0007ffff,$00ff0000,$00ffffff
+  53 A 000001A4 0007 FFFF 
+  53 A 000001A8 00FF 0000 
+  53 A 000001AC 00FF FFFF 
+  54 A 000001B0 2020 2020 2020  	dc.l	'            '
+                2020 2020 2020 
+  55 A 000001BC 2020 2020 2020  	dc.l	'            '
+                2020 2020 2020 
+  56 A 000001C8 5465 6368 6E6F  	dc.b	'Technopop writes GREAT games.'
+                706F 7020 7772 
+                6974 6573 2047 
+                5245 4154 2067 
+                616D 6573 2E 
+  57 A 000001E5 0000_000B       	dcb.b	$1f0-*,' '
+  58 A                          	ORG	$01f0
+       SECTION: ORG SECTION (ORG 000001f0)
+  59 A 000001F0 4A55 4520 2020  	dc.b	'JUE             '
+                2020 2020 2020 
+                2020 2020 
+  60 A                          *
+  61 A                          	ORG	$0200
+       SECTION: ORG SECTION (ORG 00000200)
+  62 A 00000200                 excdeath
+  63 A 00000200 60FE            	bra.s	excdeath
+  64 A                          *
+  65 A                          *
+  66 A 00000202                 start
+  67 A 00000202 1039 00A1 0001  	move.b	$a10001,d0		; SEGA security code
+  68 A 00000208 0200 000F       	and.b	#$0f,d0			; check version number
+  69 A 0000020C 670A            	beq.s	securityOK		; OK
+  70 A 0000020E 23FC 5345 4741  	move.l	#'SEGA',$a14000		; no, do this??
+                00A1 4000 
+  71 A 00000218                 securityOK
+  72 A                          *
+  73 A                          * erase SRAM
+  74 A 00000218 207C 00FF 0000  	move.l	#$00ff0000,a0		; start at ff0000
+  75 A 0000021E 303C 3FFF       	move.w	#$3fff,d0		; 16k - 1 longs
+  76 A 00000222                 eraseloop
+  77 A 00000222 20FC 0000 0000  	move.l	#0,(A0)+		; write it
+  78 A 00000228 51C8 FFF8       	dbra	d0,eraseloop
+  79 A                          *
+  80 A                          * call main()
+  81 A 0000022C 4EB9 0000'0000' 	jsr	_shellmain
+  82 A                          *
+  83 A 00000232                 here
+  84 A 00000232 60FE            	bra.s	here
+  85 A                          *
+  86 A                          *
+  87 A 00000234                 	END
+
+
+
+
+Sierra Systems ASM68K 2.10     shell.a               4/23/93 13:31  Page    3
+
+
+
+Total Errors:      0
+Total Warnings:    0
+
+
+SYMBOL TABLE
+
+Value     Section/Type  Name
+
+00000222  ABSOLUTE      eraseloop
+00000200  ABSOLUTE      excdeath
+00000232  ABSOLUTE      here
+00000218  ABSOLUTE      securityOK
+00000202  ABSOLUTE      start
+
+          EXTERNAL      _eraseCRAM
+          EXTERNAL      _eraseVRAM
+          EXTERNAL      _eraseVSRAM
+          EXTERNAL      _shellmain
+          EXTERNAL      _sounddataend
+          EXTERNAL      _sounddataptr
+

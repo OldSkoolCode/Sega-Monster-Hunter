@@ -1,0 +1,87 @@
+;*************************************************************************
+;*                      EXCEPTION HANDLERS                               *
+;*************************************************************************
+;these will generally be set depending on the development system
+;the only exceptions used by the hardware are:-
+;EX_Level2 - external interrupts
+;EX_Level4 - horizontal video interrupts
+;EX_Level6 - vertical video interrupts
+
+	ifne	DebugMode
+SCSITrap	equ	$208008
+SCSIExcept	equ	$20800C
+	endc
+	ifeq	DebugMode
+SCSITrap	equ	Ex_Infinite
+SCSIExcept	equ	Ex_Infinite
+	endc
+
+EX_BusError		jmp	$02<<24+SCSIExcept
+EX_AddressError		jmp	$03<<24+SCSIExcept
+EX_IllegalInstruction	jmp	$04<<24+SCSIExcept
+EX_DivideBy0		jmp	$05<<24+SCSIExcept
+EX_CHK			jmp	$06<<24+SCSIExcept
+EX_TrapV		jmp	$07<<24+SCSIExcept
+EX_Priviledge		jmp	$08<<24+SCSIExcept
+EX_Trace		jmp	$09<<24+SCSIExcept
+
+EX_Trap0		jmp	$20<<24+SCSITrap
+EX_Trap1		jmp	$21<<24+SCSIExcept
+EX_Trap2		jmp	$22<<24+SCSIExcept
+EX_Trap3		jmp	$23<<24+SCSIExcept
+EX_Trap4		jmp	$24<<24+SCSIExcept
+EX_Trap5		jmp	$25<<24+SCSIExcept
+EX_Trap6		jmp	$26<<24+SCSIExcept
+EX_Trap7		jmp	$27<<24+SCSIExcept
+EX_Trap8		jmp	$28<<24+SCSIExcept
+EX_Trap9		jmp	$29<<24+SCSIExcept
+EX_TrapA		jmp	$2A<<24+SCSIExcept
+EX_TrapB		jmp	$2B<<24+SCSIExcept
+EX_TrapC		jmp	$2C<<24+SCSIExcept
+EX_TrapD		jmp	$2D<<24+SCSIExcept
+EX_TrapE		jmp	$2E<<24+SCSIExcept
+EX_TrapF		jmp	$2F<<24+SCSIExcept
+
+EX_LineA
+EX_LineF
+EX_Motorola
+EX_Spurious
+EX_Level1
+EX_Level3
+EX_Level5
+EX_Level7
+
+EX_Infinite	bra	EX_Infinite		;just HANG - it should not have occured anyway!
+
+
+;*************************************************************************
+;*                      EXTERNAL INTERRUPT                               *
+;*************************************************************************
+
+EX_Level2	rte
+
+;*************************************************************************
+;*                   HORIZONTAL VIDEO INTERRUPT                          *
+;*************************************************************************
+
+EX_Level4	rte
+
+;*************************************************************************
+;*                     VERTICAL VIDEO INTERRUPT                          *
+;*************************************************************************
+
+EX_Level6
+	ifne	DebugMode
+	trap	#0		;poll the development system
+	endc
+
+	movem.l	d0-d1/a0-a1,-(a7) ;save all registers
+	st	FlyBackFlag	;flag VBLANK interrupt happened
+	subq.w	#1,GPTimer	;general purpose timer
+	bsr	ScanJoy1	;scan joystick
+	move.l	Poll_Address,a0	;get poll routine address
+	jsr	(a0)		;poll routine
+	movem.l	(a7)+,d0-d1/a0-a1 ;get old registers
+	rte			;finished interrupt
+
+

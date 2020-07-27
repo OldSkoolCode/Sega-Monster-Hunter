@@ -1,0 +1,106 @@
+
+; SegaCD Gems code
+
+; this routine is an asm version of serviceZ80DMA() in CDGEMS.C
+
+
+gemsServiceZ80DMA
+
+; this version includes the bus request - asm code by ERH @ AudioCyberWorks
+; (Use this one if you're not sure.)
+
+xfercnt	 =	$00A01B19
+xferto	 =	$00A01B1A
+xferfrom =	$00A01B1C
+
+	movem.l	d2/a0-a1,-(sp)	; save these off only if you need to!
+
+	move.w	#$100,BUSREQ	; Z80 bus request on
+.hzlp	btst.b	#0,BUSREQ	; spin on bus grant
+	bne.s	.hzlp
+
+	clr.w	d2
+	move.b	xfercnt,d2	; length of transfer
+	beq.s	.endSz
+
+	subq	#1,d2		; adjust for loop
+
+	moveq	#0,d0		; get source address
+	move.b	xferfrom+2,d0
+	swap	d0
+	move.b	xferfrom+1,d0
+	lsl.w	#8,d0
+	move.b	xferfrom,d0
+	move.l	d0,a0
+
+	moveq	#0,d0		; get dest address
+	move.b	#$a0,d0
+	swap	d0
+	move.b	xferto+1,d0
+	lsl.w	#8,d0
+	move.b	xferto,d0
+	move.l	d0,a1
+
+.szloop
+	move.b	(a0)+,(a1)+	; xfer
+	dbra	d2,.szloop
+
+	move.b	#0,xfercnt	; clear count
+
+.endSz
+	move.w	#$0,BUSREQ	; Z80 bus request off
+
+	movem.l	(sp)+,d2/a0-a1	; do this only if you have to. (saves cycles)
+	rts
+
+
+
+gemsSubServiceZ80DMA
+; this version requires you to do the bust request before and the bust
+; release after.  This is useful if you want to:
+; 	1. bus request
+; 	2. read joysticks - optimal time to read 'em.
+;	3. call gemsSubServiceZ80DMA
+; 	4. release bus
+
+; - asm code by ERH @ AudioCyberWorks
+
+xfercnt	 =	$00A01B19
+xferto	 =	$00A01B1A
+xferfrom =	$00A01B1C
+
+	movem.l	d2/a0-a1,-(sp)	; save these off only if you need to!
+
+	clr.w	d2
+	move.b	xfercnt,d2	; length of transfer
+	beq.s	.endSz
+
+	subq	#1,d2		; adjust for loop
+
+	moveq	#0,d0		; get source address
+	move.b	xferfrom+2,d0
+	swap	d0
+	move.b	xferfrom+1,d0
+	lsl.w	#8,d0
+	move.b	xferfrom,d0
+	move.l	d0,a0
+
+	moveq	#0,d0		; get dest address
+	move.b	#$a0,d0
+	swap	d0
+	move.b	xferto+1,d0
+	lsl.w	#8,d0
+	move.b	xferto,d0
+	move.l	d0,a1
+
+.szloop
+	move.b	(a0)+,(a1)+	; xfer
+	dbra	d2,.szloop
+
+	move.b	#0,xfercnt	; clear count
+
+.endSz
+	movem.l	(sp)+,d2/a0-a1	; do this only if you have to. (saves cycles)
+	rts
+
+

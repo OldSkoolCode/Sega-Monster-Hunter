@@ -1,0 +1,97 @@
+*
+*	File:		INTSHELL.A
+*
+*	Contains:	This file is the basic low memory stuff that a Genesis
+*		needs to have to handle exceptions.  It also specifies the
+*		required data at location $100 and the code to call the C
+*		routine shellmain().  Note: SRAM($ff0000-$ffffff) is erased
+*		and interrupts are enabled before calling shellmain().
+*	NOTE:		When a level 6 interrupt happens(VBL for Genesis),
+*		the C routine VBLinterrupt is called.
+*
+*	Written by:	Burt Sloane & Randel B. Reiss of Technopop
+*
+*	Copyright:	c 1990 by Sega of America, Inc., all rights reserved.
+*
+*	Change History:
+*
+*	To Do:
+*
+*
+* This is the basic page 0-2 code for any ROM that is mostly C
+*
+*	OPT	E,CASE
+
+	section	.text
+	ORG	$0
+	XREF	_shellmain
+	XREF	_eraseVRAM
+	XREF	_eraseCRAM
+	XREF	_eraseVSRAM
+	XREF	_VBLinterrupt
+*
+	dc.l	$ff8000
+	dc.l	start
+	dcb.l	24,$200
+	dc.l	excdeath		; ext int
+	dc.l	excdeath
+	dc.l	excdeath		; H int
+	dc.l	excdeath
+	dc.l	VBLint			; V int
+	dcb.l	33,$200
+
+	ORG	$0100
+*
+	dc.b	'SEGA MEGA DRIVE '
+	dc.b	'(C)SEGA 1990.MAY'
+	dc.b	'The Technopop Game'
+	dcb.b	$150-*,' '
+	ORG	$0150
+	dc.b	'Technopop for overseas'
+	dcb.b	$180-*,' '
+	ORG	$0180
+	dc.b	'GM 00000000-00'
+	dc.w	$1234
+	dc.b	'OJ              '
+	dc.l	$00000000,$0007ffff,$00ff0000,$00ffffff
+	dc.l	'            '
+	dc.l	'            '
+	dc.b	'Technopop writes GREAT games.'
+	dcb.b	$1f0-*,' '
+	ORG	$01f0
+	dc.b	'JUE             '
+*
+	ORG	$0200
+excdeath
+	bra.s	excdeath
+*
+VBLint
+	movem.l	a0/a1/d0/d1,-(a7)
+	jsr	_VBLinterrupt
+	movem.l	(a7)+,a0/a1/d0/d1
+	rte
+*
+start
+	move.b	$a10000,d0		; SEGA security code
+	and.b	#$0f,d0			; check version number
+	beq.s	securityOK		; OK
+	move.l	#'SEGA',$a14000		; no, do this??
+securityOK
+*
+* erase SRAM
+	move.l	#$00ff0000,a0		; start at ff0000
+	move.w	#$3fff,d0		; 16k - 1 longs
+eraseloop
+	move.l	#0,(A0)+		; write it
+	dbra	d0,eraseloop
+*
+* call main()
+	and.w	#$f8ff,sr		; enable interrupts
+	jsr	_shellmain
+*
+here
+	bra.s	here
+*
+*
+	END
+

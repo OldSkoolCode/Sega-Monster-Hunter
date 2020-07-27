@@ -1,0 +1,17 @@
+	include vectors.obj
+	include segahdr.obj
+	include test.obj
+	include segalogo.obj
+	include sprites.obj
+	include	dma.obj
+	include	maps.obj
+	include	xpndlzss.obj
+	include	general.obj
+	
+	org	$0
+	regs	pc=$200
+BssGroup	group	org($ff2000),size($e000),Bss
+	section	.bss,BssGroup
+
+
+

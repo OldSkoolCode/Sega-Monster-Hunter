@@ -1,0 +1,34 @@
+	include vectors.obj
+	include segahdr.obj
+	include mh.obj
+	include segalogo.obj
+	include maps.obj
+	include tad_drv.obj
+	include sprites.obj
+	include scale.obj
+	include scaler.obj
+	include	dma.obj
+	include	ai.obj
+	include	general.obj
+	include	display.obj
+	include	xpndlzss.obj
+	include	opening.obj
+	include	endlvls.obj
+	include lvl1graf.obj
+	include	lvl1map.obj
+	include lvl2graf.obj
+	include	lvl2map.obj
+	include lvl3graf.obj
+	include	lvl3map.obj
+;	include lvl4graf.obj
+;	include	lvl4map.obj
+;	include	lvl5graf.obj
+;	include	lvl5map.obj
+	include	sound.obj
+	
+	org	$0
+	regs	pc=$200
+BssGroup	group	org($ff2000),size($e000),Bss
+	section	.bss,BssGroup
+
+

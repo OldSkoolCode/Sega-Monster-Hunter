@@ -1,0 +1,62 @@
+LOGO DEMONSTRATION
+==================
+
+The logo demonstration consists of several files with
+.ANY extensions. These files contain a fairly generic
+68000 assembly source syntax. They cannot be directly
+assembled by any of SNASM, SIERRA or MICROTEC without
+first being processed by MAKELOGO.
+
+MAKELOGO should be invoked on MAIN.ANY only, as the
+other .ANY files are included in MAIN.ANY, so as to
+produce one output file, which will have the same base
+name (MAIN), but with an extension defaulting to the
+assembler's default input extension. (68K,S,SRC)
+
+MAKELOGO is somewhat over specified for doing this
+simple file conversion job. Initially, I wrote the
+demonstration for the SNASM system, which has many
+very powerful features. However, to get the assembler
+file to actually assemble under the different assemblers,
+I have had to whittle away the non (Motorola) standard
+code, to be left with code to assemble under the
+lowest common demominator, which appears to be the
+SIERRA assembler.
+
+for example:-
+to produce a MICROTEC assembler file
+
+MAKELOGO /microtec main
+
+this produces the output file MAIN.SRC
+
+The corresponding assembler file can then be assembled
+(and linked) with the following sequences:-
+
+SNASM
+-----
+\snasm\snasm68k /p /k main,logodemo
+
+to produce LOGODEMO.BIN (pure binary)
+
+SIERRA
+------
+this will require a file named SLDR.SPC in the current
+directory containing a space character!
+
+\sierra\asm68k main.s
+\sierra\link68 -o main.lnk main.o
+\sierra\sldr -St main.lnk logodemo.abs
+
+to produce LOGODEMO.ABS (S1 records)
+
+MICROTEC
+--------
+
+\microtec\asm68k main
+\microtec\lnk68k -ologodemo main
+
+to produce LOGODEMO.ABS (S2 records)
+
+
+

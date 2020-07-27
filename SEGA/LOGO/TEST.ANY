@@ -1,0 +1,23 @@
+this is first line
+#DEFINE OLD1 new1
+#DEFINE OLD2 new2
+this is another
+;this is a comment and the next line is blank
+
+	dc.b	OLD1,OLD2,'hello'
+#CASEASM=SNASM
+this is snasm line 1
+this is snasm line 2
+#CASEASM=MICROTEC
+this is a microtec line
+#CASEASM=SIERRA
+sierra1
+sierra2
+sierra3
+#ENDCASE
+
+#INCLUDE test.inc
+
+last line
+
+

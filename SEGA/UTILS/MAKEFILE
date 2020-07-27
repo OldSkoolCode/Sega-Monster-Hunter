@@ -1,0 +1,18 @@
+#	tlink /v c0l+dp2fs+anima,dp2fs,,cl
+
+
+CFLAGS = -c -v -ml
+AFLAGS = -mx -zi
+
+.c.obj:
+	bcc $(CFLAGS) $<
+
+.asm.obj:
+	tasm $(AFLAGS) $<
+
+anm2fpa.exe: anm2fpa.obj
+	tlink /v c0l+anm2fpa,anm2fpa,,cl
+
+#viewanm.exe: viewanm.obj
+#	bcc -c -ml viewanm.c
+#	tlink c0l+viewanm,viewanm,,cl

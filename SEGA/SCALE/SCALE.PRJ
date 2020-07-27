@@ -1,0 +1,20 @@
+Download and run
+[SnMake]
+
+
+co.bin; co1.lbm co.sgl
+	sg co
+
+t7:;	main.68k co.bin
+ 	snasm68k $! /w main.68k,t7:,main.sym,,r:
+
+!ifdef(DebugStr)
+	snbug68k main.sym 
+!endif
+	
+[Debug]
+	snbug68k main.sym 
+[Eval]
+	snbug68k /v$$$ main.sym
+
+

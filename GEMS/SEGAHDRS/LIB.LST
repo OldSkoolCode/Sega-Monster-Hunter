@@ -1,0 +1,325 @@
+
+Sierra Systems ASM68K 2.10     lib.a                 4/23/93 13:31  Page    1
+
+   1 T                          *
+   2 T                          *	File:		LIB.A
+   3 T                          *
+   4 T                          *	Contains:	This file contains the source for the routines defined
+   5 T                          *		in lib.h.
+   6 T                          *
+   7 T                          *	Written by:	Burt Sloane & Randel B. Reiss of Technopop
+   8 T                          *
+   9 T                          *	Copyright:	 1990 by Sega of America, Inc., all rights reserved.
+  10 T                          *
+  11 T                          *	Change History:
+  12 T                          *
+  13 T                          *	To Do:
+  14 T                          *
+  15 T                          *
+  16 T                          * Support library for C
+  17 T                          *
+  18 T                          *	OPT	E,CASE
+  19 T                          	section	.text
+       SECTION: .text 
+  20 T                          	XDEF	_eraseVRAM
+  21 T                          	XDEF	_eraseVSRAM
+  22 T                          	XDEF	_eraseCRAM
+  23 T                          	XDEF	_loadchars
+  24 T                          	XDEF	___fillVRAMword
+  25 T                          	XDEF	___fillVRAMbyte
+  26 T                          	XDEF	___copy2VRAM
+  27 T                          	XDEF	___loadScroll
+  28 T                          	XDEF	_loadPalette
+  29 T                          	XDEF	_readCtrlA
+  30 T                          	XDEF	_readCtrlB
+  31 T                          *
+  32 A 00C00000                 VDPdata		EQU	$c00000
+  33 A 00C00004                 VDPcontrol	EQU	$c00004
+  34 T                          *
+  35 T                          *
+  36 T                          * erase main VDP VRAM
+  37 T 00000000                 _eraseVRAM
+  38 T 00000000 23FC 4000 0000  	move.l	#$40000000,VDPcontrol	* addr 0
+                00C0 0004 
+  39 T 0000000A 303C 7FFF       	move.w	#$7fff,d0		* 32k - 1 words
+  40 T 0000000E                 eraseVRAMloop
+  41 T 0000000E 33FC 0000 00C0  	move.w	#$0,VDPdata
+                0000 
+  42 T 00000016 51C8 FFF6       	dbra	d0,eraseVRAMloop
+  43 T 0000001A 4E75            	rts
+  44 T                          *
+  45 T                          * erase VSRAM
+  46 T 0000001C                 _eraseVSRAM
+  47 T 0000001C 23FC 4000 0010  	move.l	#$40000010,VDPcontrol	* addr 0
+                00C0 0004 
+  48 T 00000026 303C 0027       	move.w	#39,d0			* 40 - 1 words
+  49 T 0000002A                 eraseVSRAMloop
+  50 T 0000002A 33FC 0000 00C0  	move.w	#$0,VDPdata
+                0000 
+  51 T 00000032 51C8 FFF6       	dbra	d0,eraseVSRAMloop
+  52 T 00000036 4E75            	rts
+  53 T                          *
+  54 T                          * erase CRAM
+  55 T 00000038                 _eraseCRAM
+  56 T 00000038 23FC C000 0000   	move.l	#$c0000000,VDPcontrol	* addr 0
+
+Sierra Systems ASM68K 2.10     lib.a                 4/23/93 13:31  Page    2
+
+       SECTION: .text 
+                00C0 0004 
+  57 T 00000042 303C 003F       	move.w	#63,d0			* 64 - 1 words
+  58 T 00000046                 eraseCRAMloop
+  59 T 00000046 33FC 0000 00C0  	move.w	#$0,VDPdata
+                0000 
+  60 T 0000004E 51C8 FFF6       	dbra	d0,eraseCRAMloop
+  61 T 00000052 4E75            	rts
+  62 T                          ****************************************************************
+  63 T                          *
+  64 T                          * load character data
+  65 T 00000054                 _loadchars
+  66 T 00000054 202F 0008       	move.l	8(a7),d0		* which char
+  67 T                          * if a char is 0abc.defg.hijk in binary, its address in VRAM is:
+  68 T                          *  01cd.efgh.ijk0.0000.0000.0000.0000.00ab
+  69 T 00000058 EF88            	lsl.l	#5+2,d0		* 0000.0000.0000.00ab.cdef.ghij.k000.0000
+  70 T 0000005A E448            	lsr.w	#2,d0		* 0000.0000.0000.00ab.00cd.efgh.ijk0.0000
+  71 T 0000005C 4840            	swap	d0		* 00cd.efgh.ijk0.0000.0000.0000.0000.00ab
+  72 T 0000005E 08C0 001E       	bset	#30,d0		* 01cd.efgh.ijk0.0000.0000.0000.0000.00ab
+  73 T 00000062 23C0 00C0 0004  	move.l	d0,VDPcontrol		* point the VDP at it
+  74 T                          *
+  75 T 00000068 222F 000C       	move.l	12(a7),d1		* how many chars
+  76 T 0000006C E789            	lsl.l	#3,d1			* * 8 = longs
+  77 T 0000006E 206F 0004       	move.l	4(a7),a0		* get data ptr
+  78 T 00000072                 loadcharsloop
+  79 T 00000072 23D8 00C0 0000  	move.l	(a0)+,VDPdata
+  80 T 00000078 51C9 FFF8       	dbra	d1,loadcharsloop
+  81 T 0000007C 4E75            	rts
+  82 T                          ****************************************************************
+  83 T                          *
+  84 T                          * fill VRAM with a word value
+  85 T                          **** warning: assumes the VDP address register is already set up
+  86 T 0000007E                 ___fillVRAMword
+  87 T 0000007E 202F 0004       	move.l	4(a7),d0		* data
+  88 T 00000082 222F 0008       	move.l	8(a7),d1		* num words
+  89 T 00000086 5341            	subq	#1,d1			* -1 for dbra
+  90 T 00000088                 fillWloop
+  91 T 00000088 33C0 00C0 0000  	move.w	d0,VDPdata		* write data
+  92 T 0000008E 51C9 FFF8       	dbra	d1,fillWloop
+  93 T 00000092 4E75            	rts
+  94 T                          *
+  95 T                          * fill VRAM with a byte value
+  96 T                          **** warning: assumes the VDP address register is already set up
+  97 T 00000094                 ___fillVRAMbyte
+  98 T 00000094 202F 0004       	move.l	4(a7),d0		* data
+  99 T 00000098 222F 0008       	move.l	8(a7),d1		* num bytes
+ 100 T 0000009C 5341            	subq	#1,d1			* -1 for dbra
+ 101 T 0000009E                 fillBloop
+ 102 T 0000009E 13C0 00C0 0000  	move.b	d0,VDPdata		* write data
+ 103 T 000000A4 51C9 FFF8       	dbra	d1,fillBloop
+ 104 T 000000A8 4E75            	rts
+ 105 T                          *
+ 106 T                          * copy data into VRAM
+ 107 T                          **** warning: assumes the VDP address register is already set up
+ 108 T 000000AA                 ___copy2VRAM
+ 109 T 000000AA 206F 0004       	move.l	4(a7),a0		* data ptr
+ 110 T 000000AE 202F 0008       	move.l	8(a7),d0		* num bytes
+ 111 T 000000B2 5340            	subq	#1,d0			* -1 for dbra
+ 112 T 000000B4                 copyloop
+ 113 T 000000B4 33D8 00C0 0000  	move.w	(a0)+,VDPdata		* write data
+ 114 T 000000BA 51C8 FFF8       	dbra	d0,copyloop
+
+Sierra Systems ASM68K 2.10     lib.a                 4/23/93 13:31  Page    3
+
+       SECTION: .text 
+ 115 T 000000BE 4E75            	rts
+ 116 T                          ****************************************************************
+ 117 T                          *
+ 118 T                          * load scroll data
+ 119 T 000000C0                 ___loadScroll
+ 120 T 000000C0 4E56 0000       	link	a6,#0
+ 121 T 000000C4 2F02            	move.l	d2,-(a7)		* save d2
+ 122 T 000000C6 226E 0008       	move.l	8(a6),a1		* dest VDP addr (word)
+ 123 T 000000CA 206E 000C       	move.l	12(a6),a0		* data ptr
+ 124 T 000000CE 242E 0014       	move.l	20(a6),d2		* dataV
+ 125 T 000000D2 5342            	subq	#1,d2			* -1 for dbra	
+ 126 T 000000D4 222E 0018       	move.l	24(a6),d1		* get scrollwidth
+ 127 T 000000D8 E381            	asl.l	#1,d1			* *2 = bytes
+ 128 T                          *
+ 129 T 000000DA                 lslineloadloop
+ 130 T                          * a1 has the current VRAM address, d1 is the scrollwidth in bytes
+ 131 T                          * if the addr is abcd.efgh.ijkl.mnop in binary, its address in VRAM is:
+ 132 T                          *  01cd.efgh.ijkl.mnop.0000.0000.0000.00ab
+ 133 T 000000DA 2009            	move.l	a1,d0
+ 134 T 000000DC E588            	lsl.l	#2,d0		* 0000.0000.0000.00ab.cdef.ghij.klmn.op00
+ 135 T 000000DE E448            	lsr.w	#2,d0		* 0000.0000.0000.00ab.00cd.efgh.ijkl.mnop
+ 136 T 000000E0 4840            	swap	d0		* 00cd.efgh.ijkl.mnop.0000.0000.0000.00ab
+ 137 T 000000E2 08C0 001E       	bset	#30,d0		* 01cd.efgh.ijkl.mnop.0000.0000.0000.00ab
+ 138 T 000000E6 0280 7FFF 0003  	and.l	#$7fff0003,d0		* make the 0s really 0s
+ 139 T 000000EC 23C0 00C0 0004  	move.l	d0,VDPcontrol		* send it
+ 140 T 000000F2 D3C1            	add.l	d1,a1			* add in scrollwidth for next iter
+ 141 T                          *
+ 142 T 000000F4 202E 0010       	move.l	16(a6),d0		* dataH
+ 143 T 000000F8 5340            	subq	#1,d0			* -1 for dbra
+ 144 T                          *
+ 145 T 000000FA                 lswordloadloop
+ 146 T 000000FA 33D8 00C0 0000  	move.w	(a0)+,VDPdata		* move a word
+ 147 T 00000100 51C8 FFF8       	dbra	d0,lswordloadloop
+ 148 T                          *
+ 149 T 00000104 51CA FFD4       	dbra	d2,lslineloadloop
+ 150 T                          *
+ 151 T 00000108 241F            	move.l	(a7)+,d2		* restore d2
+ 152 T 0000010A 4E5E            	unlk	a6
+ 153 T 0000010C 4E75            	rts
+ 154 T                          ****************************************************************
+ 155 T                          *
+ 156 T                          * fill a palette from table at data ptr
+ 157 T 0000010E                 _loadPalette
+ 158 T 0000010E 206F 0004       	move.l	4(a7),a0		* ptr to palette data
+ 159 T 00000112 202F 0008       	move.l	8(a7),d0		* which palette
+ 160 T 00000116 0280 0000 0003  	and.l	#$0003,d0		* mask out bad values
+ 161 T 0000011C EB88            	lsl.l	#5,d0		* 0000.0000.0000.0000.0000.0000.0cc0.0000
+ 162 T 0000011E 0040 C000       	or.w	#$c000,d0	* 0000.0000.0000.0000.1100.0000.0cc0.0000
+ 163 T 00000122 4840            	swap	d0		* 1100.0000.0cc0.0000.0000.0000.0000.0000
+ 164 T 00000124 23C0 00C0 0004  	move.l	d0,VDPcontrol
+ 165 T 0000012A 303C 000F       	move.w	#15,d0			* 16 - 1 words
+ 166 T 0000012E                 loadPaletteloop
+ 167 T 0000012E 33D8 00C0 0000  	move.w	(a0)+,VDPdata
+ 168 T 00000134 51C8 FFF8       	dbra	d0,loadPaletteloop
+ 169 T 00000138 4E75            	rts
+ 170 T                          ****************************************************************
+ 171 T                          *
+ 172 T                          * readCtrlA/B reads the player 1/2 controller into D0 as follows:
+ 173 T                          *  bit0: up
+ 174 T                          *  bit1: down
+
+Sierra Systems ASM68K 2.10     lib.a                 4/23/93 13:31  Page    4
+
+       SECTION: .text 
+ 175 T                          *  bit2: left
+ 176 T                          *  bit3: right
+ 177 T                          *  bit4: B
+ 178 T                          *  bit5: C
+ 179 T                          *  bit6: A
+ 180 T                          *  bit7: start
+ 181 T 0000013A                 _readCtrlA
+ 182 A 00A11100                 BUSREQ	equ	$A11100
+ 183 T                          *
+ 184 T 0000013A 40E7            	move.w	sr,-(sp)
+ 185 T 0000013C 007C 0700       	or.w	#$0700,sr
+ 186 T 00000140 33FC 0100 00A1  	move.w	#$100,BUSREQ	* Z80 bus request on
+                1100 
+ 187 T 00000148 0839 0000 00A1  rcazz	btst.b	#0,BUSREQ
+                1100 
+ 188 T 00000150 66F6            	bne.s	rcazz
+ 189 T                          *
+ 190 T 00000152 13FC 0040 00A1  	move.b	#$40,$a10009	* set bit 6 to output
+                0009 
+ 191 T 0000015A 13FC 0000 00A1  	move.b	#$00,$a10003	* clear bit 6 output
+                0003 
+ 192 T 00000162 323C 000A       	move.w	#10,d1
+ 193 T 00000166                 rcazzz
+ 194 T 00000166 51C9 FFFE       	dbra	d1,rcazzz	* sleep to let the hardware settle
+ 195 T 0000016A 7000            	moveq	#0,d0		* clear d0
+ 196 T 0000016C 1039 00A1 0003  	move.b	$a10003,d0	* read start & A
+ 197 T 00000172 E508            	lsl.b	#2,d0		* move them into position
+ 198 T 00000174 0200 00C0       	and.b	#$c0,d0		* turn off 0s
+ 199 T                          *
+ 200 T 00000178 13FC 0040 00A1  	move.b	#$40,$a10003	* set bit 6 output
+                0003 
+ 201 T 00000180 323C 000A       	move.w	#10,d1
+ 202 T 00000184                 rcazzzz
+ 203 T 00000184 51C9 FFFE       	dbra	d1,rcazzzz	* sleep to let the hardware settle
+ 204 T 00000188 1239 00A1 0003  	move.b	$a10003,d1	* read B, C, UDRL
+ 205 T 0000018E 0201 003F       	and.b	#$3f,d1		* mask off 0s
+ 206 T 00000192 8001            	or.b	d1,d0		* merge them
+ 207 T 00000194 4600            	not.b	d0		* change sense
+ 208 T 00000196 33FC 0000 00A1  	move.w	#$0,BUSREQ	* Z80 bus request off
+                1100 
+ 209 T 0000019E 46DF            	move.w	(sp)+,sr
+ 210 T 000001A0 4E75            	rts
+ 211 T                          *
+ 212 T                          *
+ 213 T 000001A2                 _readCtrlB
+ 214 T                          *BUSREQ	equ	$A11100
+ 215 T                          *
+ 216 T 000001A2 40E7            	move.w	sr,-(sp)
+ 217 T 000001A4 007C 0700       	or.w	#$0700,sr
+ 218 T 000001A8 33FC 0100 00A1  	move.w	#$100,BUSREQ	* Z80 bus request on
+                1100 
+ 219 T 000001B0 0839 0000 00A1  rcbzz	btst.b	#0,BUSREQ
+                1100 
+ 220 T 000001B8 66F6            	bne.s	rcbzz
+ 221 T                          *
+ 222 T 000001BA 13FC 0040 00A1  	move.b	#$40,$a1000b	* set bit 6 to output
+                000B 
+ 223 T 000001C2 13FC 0000 00A1  	move.b	#$00,$a10005	* clear bit 6 output
+                0005 
+ 224 T 000001CA 323C 000A       	move.w	#10,d1
+
+Sierra Systems ASM68K 2.10     lib.a                 4/23/93 13:31  Page    5
+
+       SECTION: .text 
+ 225 T 000001CE                 rcbzzz
+ 226 T 000001CE 51C9 FFFE       	dbra	d1,rcbzzz	* sleep to let the hardware settle
+ 227 T 000001D2 7000            	moveq	#0,d0		* clear d0
+ 228 T 000001D4 1039 00A1 0005  	move.b	$a10005,d0	* read start & A
+ 229 T 000001DA E508            	lsl.b	#2,d0		* move them into position
+ 230 T 000001DC 0200 00C0       	and.b	#$c0,d0		* turn off 0s
+ 231 T                          *
+ 232 T 000001E0 13FC 0040 00A1  	move.b	#$40,$a10005	* set bit 6 output
+                0005 
+ 233 T 000001E8 323C 000A       	move.w	#10,d1
+ 234 T 000001EC                 rcbzzzz
+ 235 T 000001EC 51C9 FFFE       	dbra	d1,rcbzzzz	* sleep to let the hardware settle
+ 236 T 000001F0 1239 00A1 0005  	move.b	$a10005,d1	* read B, C, UDRL
+ 237 T 000001F6 0201 003F       	and.b	#$3f,d1		* mask off 0s
+ 238 T 000001FA 8001            	or.b	d1,d0		* merge them
+ 239 T 000001FC 4600            	not.b	d0		* change sense
+ 240 T 000001FE 33FC 0000 00A1  	move.w	#$0,BUSREQ	* Z80 bus request off
+                1100 
+ 241 T 00000206 46DF            	move.w	(sp)+,sr
+ 242 T 00000208 4E75            	rts
+ 243 T                          *
+ 244 T                          *
+ 245 T                          *
+ 246 T 0000020A                 	END
+
+Total Errors:      0
+Total Warnings:    0
+
+
+SYMBOL TABLE
+
+Value     Section/Type  Name
+
+000000AA  .text         ___copy2VRAM
+00000094  .text         ___fillVRAMbyte
+0000007E  .text         ___fillVRAMword
+000000C0  .text         ___loadScroll
+00000038  .text         _eraseCRAM
+00000000  .text         _eraseVRAM
+0000001C  .text         _eraseVSRAM
+0000010E  .text         _loadPalette
+00000054  .text         _loadchars
+0000013A  .text         _readCtrlA
+000001A2  .text         _readCtrlB
+000000B4  .text         copyloop
+00000046  .text         eraseCRAMloop
+0000000E  .text         eraseVRAMloop
+0000002A  .text         eraseVSRAMloop
+0000009E  .text         fillBloop
+00000088  .text         fillWloop
+0000012E  .text         loadPaletteloop
+00000072  .text         loadcharsloop
+000000DA  .text         lslineloadloop
+000000FA  .text         lswordloadloop
+00000148  .text         rcazz
+00000166  .text         rcazzz
+00000184  .text         rcazzzz
+000001B0  .text         rcbzz
+000001CE  .text         rcbzzz
+000001EC  .text         rcbzzzz
+
+00A11100  ABSOLUTE      BUSREQ
+00C00004  ABSOLUTE      VDPcontrol
+00C00000  ABSOLUTE      VDPdata
+

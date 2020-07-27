@@ -1,0 +1,778 @@
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 1
+downa.asm
+
+
+
+      1
+      2				     ;{----------------------------------------------------------------------}
+      3				     ;{	     DOWNA.ASM							     }
+      4				     ;{	       Sega Ram	Board Downloader support Routines		     }
+      5				     ;{	       Copyright (C) 1992 Futurescape Productions Inc.		     }
+      6				     ;{	       Written by: Kenneth L. Hurley				     }
+      7				     ;{----------------------------------------------------------------------}
+      8
+      9
+     10	0000					     .model  large,c
+     11
+     12						     locals
+     13				     ;{----------------------------------------------------------------------}
+     14				     ;{	     macros							     }
+     15				     ;{----------------------------------------------------------------------}
+     16				     ;{----------------------------------------------------------------------}
+     17				     ;{	     write byte	to parallel port				     }
+     18				     ;{----------------------------------------------------------------------}
+     19				     writebyte	     macro   source, ErrorExit
+     20						     local   BusyLoop,BusyLoop2,targetRDY1
+     21						     local   targetRDY2
+     22
+     23						     mov     dx,es:paraPort
+     24						     add     dx,2
+     25						     in	     al,dx
+     26						     or	     al,STRBBIT		     ; set strobe low
+     27						     out     dx,al
+     28
+     29						     mov     dx,es:paraPort
+     30						     inc     dx
+     31						     mov     cx,es:timeout
+     32						     add     cx,es:timerTicks
+     33				     BusyLoop:
+     34						     in	     al,dx
+     35						     test    al,BUSYBIT		     ; wait for	target ready
+     36						     je	     targetRDY1
+     37						     cmp     cx,es:timerTicks
+     38						     jle     BusyLoop
+     39						     mov     ax,TIMEOUTERROR
+     40						     jmp     &ErrorExit
+     41				     targetRDY1:
+     42
+     43						     if	     ("&source"	eq "si")
+     44						     lodsb			     ; get data
+     45						     elseif  ("&source"	ne "al")
+     46						     mov     al,source
+     47						     endif
+     48
+     49						     mov     dx,es:paraPort
+     50						     out     dx,al
+     51
+     52						     mov     dx,es:paraPort
+     53						     add     dx,2
+     54						     in	     al,dx
+     55						     and     al,NOT STRBBIT
+     56						     out     dx,al
+     57
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 2
+downa.asm
+
+
+
+     58						     mov     dx,es:paraPort
+     59						     add     dx,2
+     60				     BusyLoop2:
+     61						     in	     al,dx
+     62						     test    al,BUSYBIT
+     63						     jne     targetRDY2
+     64						     cmp     cx,es:timerTicks
+     65						     jle     BusyLoop2
+     66						     mov     ax,TIMEOUTERROR
+     67						     jmp     &ErrorExit
+     68				     targetRDY2:
+     69						     xor     ax,ax		     ; everything okidoki
+     70
+     71						     endm
+     72
+     73				     ;{----------------------------------------------------------------------}
+     74				     ;{	     Read byte from parallel port				     }
+     75				     ;{----------------------------------------------------------------------}
+     76				     readbyte	     Macro   dest
+     77						     local   BusyLoop,BusyLoop1
+     78
+     79						     mov     cx,2
+     80				     BusyLoop:
+     81						     mov     dx,es:paraPort
+     82						     inc     dx
+     83						     in	     al,dx
+     84						     test    al,BUSYBIT		     ; see if target ready
+     85						     jne     BusyLoop3
+     86
+     87						     mov     dx,es:paraPort
+     88						     add     dx,2
+     89						     in	     al,dx
+     90						     or	     al,STRBBIT		     ; set strobe low
+     91						     out     dx,al
+     92
+     93				     BusyLoop1:
+     94						     move.w  dx,es:paraPort
+     95						     inc     dx
+     96						     in	     al,dx
+     97						     test    al,BUSYBIT		     ; see if target sent
+     98						     je	     BusyLoop1
+     99
+    100						     shl     al,1
+    101						     and     al,0f0h
+    102						     shr     bl,1
+    103						     shr     bl,1
+    104						     shr     bl,1
+    105						     shr     bl,1
+    106						     or	     bl,al
+    107						     mov     dx,es:paraPort
+    108						     add     dx,2
+    109						     in	     al,dx
+    110						     and     al,NOT STRBBIT	     ; stobe got nibble
+    111						     out     dx,al
+    112
+    113						     loop    BusyLoop
+    114
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 3
+downa.asm
+
+
+
+    115						     if	     ("&dest" eq "di")
+    116						     stosb			     ; get data
+    117						     elseif  ("&dest" ne "bl")
+    118						     mov     dest,bl
+    119						     endif
+    120
+    121						     endm
+    122
+    123
+    124				     ;{----------------------------------------------------------------------}
+    125				     ;{	     equates							     }
+    126				     ;{----------------------------------------------------------------------}
+    127	      =0080		     DOWNLOAD	     equ     80h
+    128	      =0081		     UPLOAD	     equ     81h
+    129	      =0082		     SET_REGS	     equ     82h
+    130	      =0083		     GET_REGS	     equ     83h
+    131	      =0084		     EXECUTE_PC	     equ     84h
+    132	      =0085		     PRINT_TEXT	     equ     85h
+    133
+    134	      =0080		     BUSYBIT	     equ     10000000b
+    135	      =0040		     ACKBIT	     equ     01000000b
+    136	      =0020		     POUTBIT	     equ     00100000b
+    137	      =0010		     SELBIT	     equ     00010000b
+    138	      =0010		     SELBIT	     equ     00010000b
+    139	      =0008		     ERRORBIT	     equ     00001000b
+    140
+    141	      =0001		     STRBBIT	     equ     00000001b
+    142
+    143
+    144	      =0015		     NAKBYTE	     equ     15h	     ; ascii NAK
+    145	      =0006		     ACKBYTE	     equ     6		     ; ascii ACK
+    146
+    147	      =0001		     TIMEOUTERROR    equ     1
+    148	      =0002		     FAILEDRETRIES   equ     2		     ; errors
+    149
+    150				     ;{----------------------------------------------------------------------}
+    151				     ;{	     structures							     }
+    152				     ;{----------------------------------------------------------------------}
+    153	*000			     headerpacket    struc
+    154	*000  01*(????)		     HPCOMMAND	     dw	     ?
+    155	*002  01*(????????)	     HPADDRESS	     dd	     ?
+    156	*006  01*(????????)	     HPLENGTH	     dd	     ?
+    157	*00A  01*(????)		     HPX	     dw	     ?
+    158	*00C  01*(????)		     HPY	     dw	     ?
+    159
+    160	*00E					     ends
+    161
+    162	0000			     dseg	     segment 'FARDATA'
+    163
+    164	0000			     CRC16Tab	     label word
+    165
+    166	0000  0000 C0C1	C181 0140 +	     dw	00000H,	0C0C1H,	0C181H,	00140H,	0C301H,	003C0H,	00280H,	0C241H
+    167	      C301 03C0	0280 C241
+    168	0010  C601 06C0	0780 C741 +	     dw	0C601H,	006C0H,	00780H,	0C741H,	00500H,	0C5C1H,	0C481H,	00440H
+    169	      0500 C5C1	C481 0440
+    170	0020  CC01 0CC0	0D80 CD41 +	     dw	0CC01H,	00CC0H,	00D80H,	0CD41H,	00F00H,	0CFC1H,	0CE81H,	00E40H
+    171	      0F00 CFC1	CE81 0E40
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 4
+downa.asm
+
+
+
+    172	0030  0A00 CAC1	CB81 0B40 +	     dw	00A00H,	0CAC1H,	0CB81H,	00B40H,	0C901H,	009C0H,	00880H,	0C841H
+    173	      C901 09C0	0880 C841
+    174	0040  D801 18C0	1980 D941 +	     dw	0D801H,	018C0H,	01980H,	0D941H,	01B00H,	0DBC1H,	0DA81H,	01A40H
+    175	      1B00 DBC1	DA81 1A40
+    176	0050  1E00 DEC1	DF81 1F40 +	     dw	01E00H,	0DEC1H,	0DF81H,	01F40H,	0DD01H,	01DC0H,	01C80H,	0DC41H
+    177	      DD01 1DC0	1C80 DC41
+    178	0060  1400 D4C1	D581 1540 +	     dw	01400H,	0D4C1H,	0D581H,	01540H,	0D701H,	017C0H,	01680H,	0D641H
+    179	      D701 17C0	1680 D641
+    180	0070  D201 12C0	1380 D341 +	     dw	0D201H,	012C0H,	01380H,	0D341H,	01100H,	0D1C1H,	0D081H,	01040H
+    181	      1100 D1C1	D081 1040
+    182	0080  F001 30C0	3180 F141 +	     dw	0F001H,	030C0H,	03180H,	0F141H,	03300H,	0F3C1H,	0F281H,	03240H
+    183	      3300 F3C1	F281 3240
+    184	0090  3600 F6C1	F781 3740 +	     dw	03600H,	0F6C1H,	0F781H,	03740H,	0F501H,	035C0H,	03480H,	0F441H
+    185	      F501 35C0	3480 F441
+    186	00A0  3C00 FCC1	FD81 3D40 +	     dw	03C00H,	0FCC1H,	0FD81H,	03D40H,	0FF01H,	03FC0H,	03E80H,	0FE41H
+    187	      FF01 3FC0	3E80 FE41
+    188	00B0  FA01 3AC0	3B80 FB41 +	     dw	0FA01H,	03AC0H,	03B80H,	0FB41H,	03900H,	0F9C1H,	0F881H,	03840H
+    189	      3900 F9C1	F881 3840
+    190	00C0  2800 E8C1	E981 2940 +	     dw	02800H,	0E8C1H,	0E981H,	02940H,	0EB01H,	02BC0H,	02A80H,	0EA41H
+    191	      EB01 2BC0	2A80 EA41
+    192	00D0  EE01 2EC0	2F80 EF41 +	     dw	0EE01H,	02EC0H,	02F80H,	0EF41H,	02D00H,	0EDC1H,	0EC81H,	02C40H
+    193	      2D00 EDC1	EC81 2C40
+    194	00E0  E401 24C0	2580 E541 +	     dw	0E401H,	024C0H,	02580H,	0E541H,	02700H,	0E7C1H,	0E681H,	02640H
+    195	      2700 E7C1	E681 2640
+    196	00F0  2200 E2C1	E381 2340 +	     dw	02200H,	0E2C1H,	0E381H,	02340H,	0E101H,	021C0H,	02080H,	0E041H
+    197	      E101 21C0	2080 E041
+    198	0100  A001 60C0	6180 A141 +	     dw	0A001H,	060C0H,	06180H,	0A141H,	06300H,	0A3C1H,	0A281H,	06240H
+    199	      6300 A3C1	A281 6240
+    200	0110  6600 A6C1	A781 6740 +	     dw	06600H,	0A6C1H,	0A781H,	06740H,	0A501H,	065C0H,	06480H,	0A441H
+    201	      A501 65C0	6480 A441
+    202	0120  6C00 ACC1	AD81 6D40 +	     dw	06C00H,	0ACC1H,	0AD81H,	06D40H,	0AF01H,	06FC0H,	06E80H,	0AE41H
+    203	      AF01 6FC0	6E80 AE41
+    204	0130  AA01 6AC0	6B80 AB41 +	     dw	0AA01H,	06AC0H,	06B80H,	0AB41H,	06900H,	0A9C1H,	0A881H,	06840H
+    205	      6900 A9C1	A881 6840
+    206	0140  7800 B8C1	B981 7940 +	     dw	07800H,	0B8C1H,	0B981H,	07940H,	0BB01H,	07BC0H,	07A80H,	0BA41H
+    207	      BB01 7BC0	7A80 BA41
+    208	0150  BE01 7EC0	7F80 BF41 +	     dw	0BE01H,	07EC0H,	07F80H,	0BF41H,	07D00H,	0BDC1H,	0BC81H,	07C40H
+    209	      7D00 BDC1	BC81 7C40
+    210	0160  B401 74C0	7580 B541 +	     dw	0B401H,	074C0H,	07580H,	0B541H,	07700H,	0B7C1H,	0B681H,	07640H
+    211	      7700 B7C1	B681 7640
+    212	0170  7200 B2C1	B381 7340 +	     dw	07200H,	0B2C1H,	0B381H,	07340H,	0B101H,	071C0H,	07080H,	0B041H
+    213	      B101 71C0	7080 B041
+    214	0180  5000 90C1	9181 5140 +	     dw	05000H,	090C1H,	09181H,	05140H,	09301H,	053C0H,	05280H,	09241H
+    215	      9301 53C0	5280 9241
+    216	0190  9601 56C0	5780 9741 +	     dw	09601H,	056C0H,	05780H,	09741H,	05500H,	095C1H,	09481H,	05440H
+    217	      5500 95C1	9481 5440
+    218	01A0  9C01 5CC0	5D80 9D41 +	     dw	09C01H,	05CC0H,	05D80H,	09D41H,	05F00H,	09FC1H,	09E81H,	05E40H
+    219	      5F00 9FC1	9E81 5E40
+    220	01B0  5A00 9AC1	9B81 5B40 +	     dw	05A00H,	09AC1H,	09B81H,	05B40H,	09901H,	059C0H,	05880H,	09841H
+    221	      9901 59C0	5880 9841
+    222	01C0  8801 48C0	4980 8941 +	     dw	08801H,	048C0H,	04980H,	08941H,	04B00H,	08BC1H,	08A81H,	04A40H
+    223	      4B00 8BC1	8A81 4A40
+    224	01D0  4E00 8EC1	8F81 4F40 +	     dw	04E00H,	08EC1H,	08F81H,	04F40H,	08D01H,	04DC0H,	04C80H,	08C41H
+    225	      8D01 4DC0	4C80 8C41
+    226	01E0  4400 84C1	8581 4540 +	     dw	04400H,	084C1H,	08581H,	04540H,	08701H,	047C0H,	04680H,	08641H
+    227	      8701 47C0	4680 8641
+    228	01F0  8201 42C0	4380 8341 +	     dw	08201H,	042C0H,	04380H,	08341H,	04100H,	081C1H,	08081H,	04040H
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 5
+downa.asm
+
+
+
+    229	      4100 81C1	8081 4040
+    230
+    231	0200  0E*(??)		     tempheader	     headerpacket<>
+    232
+    233						     public  paraPort
+    234	020E  03BC		     paraPort	     dw	     3bch	     ; default parallel	port
+    235	0210  005B		     timeout	     dw	     91		     ; 5 second	timeout
+    236	0212  0003		     retries	     dw	     3		     ; 3 retries
+    237	0214  0000		     timerTicks	     dw	     0		     ; timer ticks
+    238
+    239	0216			     dseg	     ends
+    240
+    241
+    242	0000			     cseg	     segment 'CODE'
+    243
+    244				     ;{----------------------------------------------------------------------}
+    245				     ;{	     start of code section					     }
+    246				     ;{----------------------------------------------------------------------}
+    247
+    248						     assume  cs:cseg,ds:dseg,es:dseg
+    249				     ;{----------------------------------------------------------------------}
+    250				     ;{	Function:    _SendHeaderPacket(int command, long address,	     }
+    251				     ;{				     long dlength, int xpos, int ypos);	     }
+    252				     ;{	Description: Download header packet through parallel port	     }
+    253				     ;{	Parameters:  command = command for ram board			     }
+    254				     ;{		     address = address to send data			     }
+    255				     ;{		     dlength = length of data				     }
+    256				     ;{		     x = x position if any				     }
+    257				     ;{		     y = y position if any				     }
+    258				     ;{	Returns:     ax	= 0 then No Errors				     }
+    259				     ;{			= TIMEOUTERROR if timed	out			     }
+    260				     ;{			= FAILEDRETRIES	if maximum retries reached	     }
+    261				     ;{----------------------------------------------------------------------}
+    262						     public  SendHeaderPacket
+    263	0000			     SendHeaderPacket Proc   far
+    264
+    265						     uses    si,di,ds,es
+    266
+    267						     arg     COMMAND:word, ADDRESS:dword, DLENGTH:word
+    268						     arg     XPOS:word,	YPOS:word
+    269
+1   270	0000  55			     PUSH    BP
+1   271	0001  8B EC			     MOV     BP,SP
+1   272	0003  56			     PUSH    SI
+1   273	0004  57			     PUSH    DI
+1   274	0005  1E			     PUSH    DS
+1   275	0006  06			     PUSH    ES
+1   276	0007  BF 0000s				     mov     di,seg tempheader
+    277	000A  8E C7				     mov     es,di
+    278	000C  8E DF				     mov     ds,di
+    279	000E  BF 0200r				     mov     di,offset tempheader ; get	address	of header
+    280	0011  8B F7				     mov     si,di
+    281
+    282	0013  8B 46 0E				     mov     ax,XPOS	     ; get x position
+    283	0016  86 E0				     xchg    ah,al
+    284	0018  AB				     stosw
+    285	0019  8B 46 0A				     mov     ax,word ptr ADDRESS+2
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 6
+downa.asm
+
+
+
+    286	001C  8B 56 08				     mov     dx,word ptr ADDRESS     ; get address parameter
+    287	001F  86 E0				     xchg    ah,al
+    288	0021  86 F2				     xchg    dh,dl	     ; swap bytes reverse order
+    289	0023  AB				     stosw
+    290	0024  8B C2				     mov     ax,dx
+    291	0026  AB				     stosw
+    292	0027  8B 46 0E				     mov     ax,word ptr DLENGTH+2
+    293	002A  8B 56 0C				     mov     dx,word ptr DLENGTH     ; get data	length parameter
+    294	002D  86 E0				     xchg    ah,al
+    295	002F  86 F2				     xchg    dh,dl	     ; swap bytes reverse order
+    296	0031  AB				     stosw
+    297	0032  8B C2				     mov     ax,dx
+    298	0034  AB				     stosw
+    299	0035  8B 46 0E				     mov     ax,XPOS	     ; store x & y positions
+    300	0038  AB				     stosw
+    301	0039  8B 46 10				     mov     ax,YPOS
+    302	003C  AB				     stosw
+    303	003D  B9 000E				     mov     cx,size headerpacket
+    304	0040  E8 0006				     call    near ptr OutParaPort
+    305
+1   306	0043  07			     POP     ES
+1   307	0044  1F			     POP     DS
+1   308	0045  5F			     POP     DI
+1   309	0046  5E			     POP     SI
+1   310	0047  5D			     POP     BP
+1   311	0048  CB			     RET     00000h
+    312
+    313	0049			     SendHeaderPacket Endp
+    314
+    315				     ;{----------------------------------------------------------------------}
+    316				     ;{	Function:    OurParaPort					     }
+    317				     ;{	Description: Write data	to parallel port with time out and retries   }
+    318				     ;{		     if	target NAK's					     }
+    319				     ;{	Parameters:  cx	= length of write				     }
+    320				     ;{		     timeout = timeout value in	18.2 ticks		     }
+    321				     ;{		     retries = number of retries for NAK's		     }
+    322				     ;{		     paraPort						     }
+    323				     ;{	Returns:     ax	= 0 then ok					     }
+    324				     ;{			= TIMEOUTERROR if timeout occurred		     }
+    325				     ;{			= FAILEDRETRIES	if maximum retries encountered	     }
+    326				     ;{----------------------------------------------------------------------}
+    327	0049			     OutParaPort     Proc    Near
+    328
+    329	0049  B8 0000s				     mov     ax,seg paraPort
+    330	004C  8E C0				     mov     es,ax
+    331
+    332	004E  E8 0183				     call    near ptr Crc16
+    333	0051  86 E0				     xchg    ah,al
+    334	0053  8B E8				     mov     bp,ax	     ; save CRC	for later
+    335
+    336	0055  26: 8B 1E	0212r			     mov     bx,es:retries   ; number of retries
+    337	005A			     @@TryAgainLoop:
+    338	005A  53				     push    bx
+    339	005B  51				     push    cx
+    340	005C  56				     push    si
+    341	005D			     @@NextByte:
+    342						     writebyte si,OPExit     ; write out bytes
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 7
+downa.asm
+
+
+
+1   343
+1   344	005D  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   345	0062  83 C2 02				     add     dx,2
+1   346	0065  EC				     in	     al,dx
+1   347	0066  0C 01				     or	     al,STRBBIT		     ; set strobe low
+1   348	0068  EE				     out     dx,al
+1   349
+1   350	0069  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   351	006E  42				     inc     dx
+1   352	006F  26: 8B 0E	0210r			     mov     cx,es:timeout
+1   353	0074  26: 03 0E	0214r			     add     cx,es:timerTicks
+1   354	0079			     ??0000:
+1   355	0079  EC				     in	     al,dx
+1   356	007A  A8 80				     test    al,BUSYBIT		     ; wait for	target ready
+1   357	007C  74 0D				     je	     ??0002
+1   358	007E  26: 3B 0E	0214r			     cmp     cx,es:timerTicks
+1   359	0083  7E F4				     jle     ??0000
+1   360	0085  B8 0001				     mov     ax,TIMEOUTERROR
+1   361	0088  E9 0145				     jmp     OPExit
+1   362	008B			     ??0002:
+1   363
+1   364						     if	     ("si" eq "si")
+1   365	008B  AC				     lodsb			     ; get data
+1   366						     elseif  ("si" ne "al")
+1   367						     mov     al,si
+1   368						     endif
+1   369
+1   370	008C  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   371	0091  EE				     out     dx,al
+1   372
+1   373	0092  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   374	0097  83 C2 02				     add     dx,2
+1   375	009A  EC				     in	     al,dx
+1   376	009B  24 FE				     and     al,NOT STRBBIT
+1   377	009D  EE				     out     dx,al
+1   378
+1   379	009E  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   380	00A3  83 C2 02				     add     dx,2
+1   381	00A6			     ??0001:
+1   382	00A6  EC				     in	     al,dx
+1   383	00A7  A8 80				     test    al,BUSYBIT
+1   384	00A9  75 0D				     jne     ??0003
+1   385	00AB  26: 3B 0E	0214r			     cmp     cx,es:timerTicks
+1   386	00B0  7E F4				     jle     ??0001
+1   387	00B2  B8 0001				     mov     ax,TIMEOUTERROR
+1   388	00B5  E9 0118				     jmp     OPExit
+1   389	00B8			     ??0003:
+1   390	00B8  33 C0				     xor     ax,ax		     ; everything okidoki
+1   391
+    392	00BA  E2 A1				     loop    @@NextByte
+    393
+    394	00BC  8B C5				     mov     ax,bp
+    395						     writebyte al
+1   396
+1   397	00BE  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   398	00C3  83 C2 02				     add     dx,2
+1   399	00C6  EC				     in	     al,dx
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 8
+downa.asm
+
+
+
+1   400	00C7  0C 01				     or	     al,STRBBIT		     ; set strobe low
+1   401	00C9  EE				     out     dx,al
+1   402
+1   403	00CA  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   404	00CF  42				     inc     dx
+1   405	00D0  26: 8B 0E	0210r			     mov     cx,es:timeout
+1   406	00D5  26: 03 0E	0214r			     add     cx,es:timerTicks
+1   407	00DA			     ??0004:
+1   408	00DA  EC				     in	     al,dx
+1   409	00DB  A8 80				     test    al,BUSYBIT		     ; wait for	target ready
+1   410	00DD  74 0E				     je	     ??0006
+1   411	00DF  26: 3B 0E	0214r			     cmp     cx,es:timerTicks
+1   412	00E4  7E F4				     jle     ??0004
+1   413	00E6  B8 0001				     mov     ax,TIMEOUTERROR
+1   414	00E9  FF 26 0000			     jmp
+**Error** downa.asm(303) WRITEBYTE(19) Too few operands	to instruction
+1   415	00ED			     ??0006:
+1   416
+1   417						     if	     ("al" eq "si")
+1   418						     lodsb			     ; get data
+1   419						     elseif  ("al" ne "al")
+1   420						     mov     al,al
+1   421						     endif
+1   422
+1   423	00ED  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   424	00F2  EE				     out     dx,al
+1   425
+1   426	00F3  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   427	00F8  83 C2 02				     add     dx,2
+1   428	00FB  EC				     in	     al,dx
+1   429	00FC  24 FE				     and     al,NOT STRBBIT
+1   430	00FE  EE				     out     dx,al
+1   431
+1   432	00FF  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   433	0104  83 C2 02				     add     dx,2
+1   434	0107			     ??0005:
+1   435	0107  EC				     in	     al,dx
+1   436	0108  A8 80				     test    al,BUSYBIT
+1   437	010A  75 0E				     jne     ??0007
+1   438	010C  26: 3B 0E	0214r			     cmp     cx,es:timerTicks
+1   439	0111  7E F4				     jle     ??0005
+1   440	0113  B8 0001				     mov     ax,TIMEOUTERROR
+1   441	0116  FF 26 0000			     jmp
+**Error** downa.asm(303) WRITEBYTE(46) Too few operands	to instruction
+1   442	011A			     ??0007:
+1   443	011A  33 C0				     xor     ax,ax		     ; everything okidoki
+1   444
+    445						     writebyte ah	     ; write crc-16
+1   446
+1   447	011C  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   448	0121  83 C2 02				     add     dx,2
+1   449	0124  EC				     in	     al,dx
+1   450	0125  0C 01				     or	     al,STRBBIT		     ; set strobe low
+1   451	0127  EE				     out     dx,al
+1   452
+1   453	0128  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   454	012D  42				     inc     dx
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 9
+downa.asm
+
+
+
+1   455	012E  26: 8B 0E	0210r			     mov     cx,es:timeout
+1   456	0133  26: 03 0E	0214r			     add     cx,es:timerTicks
+1   457	0138			     ??0008:
+1   458	0138  EC				     in	     al,dx
+1   459	0139  A8 80				     test    al,BUSYBIT		     ; wait for	target ready
+1   460	013B  74 0E				     je	     ??000A
+1   461	013D  26: 3B 0E	0214r			     cmp     cx,es:timerTicks
+1   462	0142  7E F4				     jle     ??0008
+1   463	0144  B8 0001				     mov     ax,TIMEOUTERROR
+1   464	0147  FF 26 0000			     jmp
+**Error** downa.asm(304) WRITEBYTE(19) Too few operands	to instruction
+1   465	014B			     ??000A:
+1   466
+1   467						     if	     ("ah" eq "si")
+1   468						     lodsb			     ; get data
+1   469						     elseif  ("ah" ne "al")
+1   470	014B  8A C4				     mov     al,ah
+1   471						     endif
+1   472
+1   473	014D  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   474	0152  EE				     out     dx,al
+1   475
+1   476	0153  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   477	0158  83 C2 02				     add     dx,2
+1   478	015B  EC				     in	     al,dx
+1   479	015C  24 FE				     and     al,NOT STRBBIT
+1   480	015E  EE				     out     dx,al
+1   481
+1   482	015F  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   483	0164  83 C2 02				     add     dx,2
+1   484	0167			     ??0009:
+1   485	0167  EC				     in	     al,dx
+1   486	0168  A8 80				     test    al,BUSYBIT
+1   487	016A  75 0E				     jne     ??000B
+1   488	016C  26: 3B 0E	0214r			     cmp     cx,es:timerTicks
+1   489	0171  7E F4				     jle     ??0009
+1   490	0173  B8 0001				     mov     ax,TIMEOUTERROR
+1   491	0176  FF 26 0000			     jmp
+**Error** downa.asm(304) WRITEBYTE(46) Too few operands	to instruction
+1   492	017A			     ??000B:
+1   493	017A  33 C0				     xor     ax,ax		     ; everything okidoki
+1   494
+    495
+    496	017C  B9 0002				     mov     cx,2
+    497
+    498						     readbyte al	     ; get response
+1   499
+1   500	017F  B9 0002				     mov     cx,2
+1   501	0182			     ??000C:
+1   502	0182  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   503	0187  42				     inc     dx
+1   504	0188  EC				     in	     al,dx
+1   505	0189  A8 80				     test    al,BUSYBIT		     ; see if target ready
+1   506	018B  75 73				     jne     BusyLoop3
+**Error** downa.asm(308) READBYTE(8) Undefined symbol: BUSYLOOP3
+1   507
+1   508	018D  26: 8B 16	020Er			     mov     dx,es:paraPort
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 10
+downa.asm
+
+
+
+1   509	0192  83 C2 02				     add     dx,2
+1   510	0195  EC				     in	     al,dx
+1   511	0196  0C 01				     or	     al,STRBBIT		     ; set strobe low
+1   512	0198  EE				     out     dx,al
+1   513
+1   514	0199			     ??000D:
+1   515						     move.w  dx,es:paraPort
+**Error** downa.asm(308) READBYTE(17) Illegal instruction
+1   516	0199  42				     inc     dx
+1   517	019A  EC				     in	     al,dx
+1   518	019B  A8 80				     test    al,BUSYBIT		     ; see if target sent
+1   519	019D  74 FA				     je	     ??000D
+1   520
+1   521	019F  D0 E0				     shl     al,1
+1   522	01A1  24 F0				     and     al,0f0h
+1   523	01A3  D0 EB				     shr     bl,1
+1   524	01A5  D0 EB				     shr     bl,1
+1   525	01A7  D0 EB				     shr     bl,1
+1   526	01A9  D0 EB				     shr     bl,1
+1   527	01AB  0A D8				     or	     bl,al
+1   528	01AD  26: 8B 16	020Er			     mov     dx,es:paraPort
+1   529	01B2  83 C2 02				     add     dx,2
+1   530	01B5  EC				     in	     al,dx
+1   531	01B6  24 FE				     and     al,NOT STRBBIT	     ; stobe got nibble
+1   532	01B8  EE				     out     dx,al
+1   533
+1   534	01B9  E2 C7				     loop    ??000C
+1   535
+1   536						     if	     ("al" eq "di")
+1   537						     stosb			     ; get data
+1   538						     elseif  ("al" ne "bl")
+1   539	01BB  8A C3				     mov     al,bl
+1   540						     endif
+1   541
+    542
+    543	01BD  3C 06				     cmp     al,ACKBYTE	     ; received	bytes ok?
+    544	01BF  75 05				     jne     @@TryAgain
+    545	01C1  33 C0				     xor     ax,ax
+    546	01C3  EB 0B 90				     jmp     OPExit
+    547	01C6			     @@TryAgain:
+    548	01C6  5E				     pop     si
+    549	01C7  59				     pop     cx
+    550	01C8  5B				     pop     bx
+    551
+    552	01C9  4B				     dec     bx
+    553	01CA  75 00				     jne     @@TryAgainLoop  ; Try again
+**Error** downa.asm(320) Relative jump out of range by 00F2h bytes
+    554	01CC  B8 0002				     mov     ax,FAILEDRETRIES
+1   555	01CF  C3			     RET     00000h
+    556	01D0			     OPExit:
+    557	01D0  5E				     pop     si
+    558	01D1  59				     pop     cx
+    559	01D2  5B				     pop     bx
+    560
+1   561	01D3  C3			     RET     00000h
+    562
+    563	01D4			     OutParaPort     Endp
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 11
+downa.asm
+
+
+
+    564
+    565				     ;{----------------------------------------------------------------------}
+    566				     ;{	Function:    Crc16						     }
+    567				     ;{	Description: Calculate 16 bit CRC value	for buffer		     }
+    568				     ;{	Parameters:  cx	= length					     }
+    569				     ;{		     ds:si = buffer					     }
+    570				     ;{	Returns:     ax	= CRC value					     }
+    571				     ;{----------------------------------------------------------------------}
+    572	01D4			     Crc16	     Proc    Near
+    573
+    574	01D4  53				     push    bx
+    575	01D5  51				     push    cx
+    576	01D6  56				     push    si
+    577	01D7  06				     push    es
+    578
+    579	01D8  33 C0				     xor     ax,ax
+    580	01DA			     @@loop:
+    581	01DA  32 FF				     xor     bh,bh
+    582	01DC  8A 1C				     mov     bl,[si]
+    583	01DE  46				     inc     si
+    584	01DF  32 D8				     xor     bl,al
+    585	01E1  D1 E3				     shl     bx,1
+    586
+    587	01E3  8A C4				     mov     al,ah
+    588	01E5  32 E4				     xor     ah,ah
+    589	01E7  2E: 33 87	0000r			     xor     ax,cs:[bx+CRC16Tab]
+    590	01EC  E2 EC				     loop    @@loop			     ; Go until	done
+    591
+    592	01EE  07				     pop     es
+    593	01EF  5E				     pop     si
+    594	01F0  59				     pop     cx
+    595	01F1  5B				     pop     bx
+1   596	01F2  C3			     RET     00000h
+    597
+    598	01F3			     Crc16	     Endp
+    599
+    600	01F3			     cseg	     ends
+    601
+    602						     end
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 12
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??0000				  Near	 CSEG:0079
+??0001				  Near	 CSEG:00A6
+??0002				  Near	 CSEG:008B
+??0003				  Near	 CSEG:00B8
+??0004				  Near	 CSEG:00DA
+??0005				  Near	 CSEG:0107
+??0006				  Near	 CSEG:00ED
+??0007				  Near	 CSEG:011A
+??0008				  Near	 CSEG:0138
+??0009				  Near	 CSEG:0167
+??000A				  Near	 CSEG:014B
+??000B				  Near	 CSEG:017A
+??000C				  Near	 CSEG:0182
+??000D				  Near	 CSEG:0199
+??DATE				  Text	 "12/10/92"
+??FILENAME			  Text	 "downa	  "
+??TIME				  Text	 "13:49:39"
+??VERSION			  Number 030A
+@32BIT				  Text	 0
+@@LOOP				  Near	 CSEG:01DA
+@@NEXTBYTE			  Near	 CSEG:005D
+@@TRYAGAIN			  Near	 CSEG:01C6
+@@TRYAGAINLOOP			  Near	 CSEG:005A
+@CODE				  Text	 DOWNA_TEXT
+@CODESIZE			  Text	 1
+@CPU				  Text	 0101H
+@CURSEG				  Text	 CSEG
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 1
+@FILENAME			  Text	 DOWNA
+@INTERFACE			  Text	 01H
+@MODEL				  Text	 5
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+ACKBIT				  Number 0040
+ACKBYTE				  Number 0006
+ADDRESS				  Number [DGROUP:BP+0008]
+BUSYBIT				  Number 0080
+COMMAND				  Number [DGROUP:BP+0006]
+CRC16				  Near	 CSEG:01D4
+CRC16TAB			  Word	 DSEG:0000
+DLENGTH				  Number [DGROUP:BP+000C]
+DOWNLOAD			  Number 0080
+ERRORBIT			  Number 0008
+EXECUTE_PC			  Number 0084
+FAILEDRETRIES			  Number 0002
+GET_REGS			  Number 0083
+NAKBYTE				  Number 0015
+OPEXIT				  Near	 CSEG:01D0
+OUTPARAPORT			  Near	 CSEG:0049
+PARAPORT (_paraPort)		  Word	 DSEG:020E
+POUTBIT				  Number 0020
+PRINT_TEXT			  Number 0085
+RETRIES				  Word	 DSEG:0212
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 13
+Symbol Table
+
+
+
+SELBIT				  Number 0010
+SENDHEADERPACKET	       +  Far	 CSEG:0000
+(_SendHeaderPacket)
+SET_REGS			  Number 0082
+STRBBIT				  Number 0001
+TEMPHEADER			  Struct DSEG:0200 HEADERPACKET
+TIMEOUT				  Word	 DSEG:0210
+TIMEOUTERROR			  Number 0001
+TIMERTICKS			  Word	 DSEG:0214
+UPLOAD				  Number 0081
+XPOS				  Number [DGROUP:BP+000E]
+YPOS				  Number [DGROUP:BP+0010]
+
+Macro Name
+
+READBYTE
+WRITEBYTE
+
+Structure Name			  Type	Offset
+
+HEADERPACKET
+ HPCOMMAND			  Word	 0000
+ HPADDRESS			  Dword	 0002
+ HPLENGTH			  Dword	 0006
+ HPX				  Word	 000A
+ HPY				  Word	 000C
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+CSEG				  16  01F3 Para	  none	  CODE
+DGROUP				  Group
+  _DATA				  16  0000 Word	  Public  DATA
+DOWNA_TEXT			  16  0000 Word	  Public  CODE
+DSEG				  16  0216 Para	  none	  FARDATA
+Turbo Assembler	 Version 3.1	    12/10/92 13:49:39	    Page 14
+Error Summary
+
+
+
+**Error** downa.asm(303) WRITEBYTE(19) Too few operands	to instruction
+**Error** downa.asm(303) WRITEBYTE(46) Too few operands	to instruction
+**Error** downa.asm(304) WRITEBYTE(19) Too few operands	to instruction
+**Error** downa.asm(304) WRITEBYTE(46) Too few operands	to instruction
+**Error** downa.asm(308) READBYTE(8) Undefined symbol: BUSYLOOP3
+**Error** downa.asm(308) READBYTE(17) Illegal instruction
+**Error** downa.asm(320) Relative jump out of range by 00F2h bytes
+

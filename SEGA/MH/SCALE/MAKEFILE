@@ -1,0 +1,16 @@
+
+
+makefile: test.exe scale.com
+	@touch makefile
+
+
+test.exe: test.c
+	bcc -v test.c
+
+sin.asm: test.exe
+	test >sin.asm
+
+
+scale.com: scale.asm sin.asm
+	tasmx -zi -kh20000 scale
+	tlink /3 -v scale

@@ -1,0 +1,18 @@
+
+
+makefile: sy.exe dline.exe sx.exe
+	touch makefile
+
+sy.exe: sy.c sya.obj
+	bcc -ml -v sy.c sya.obj
+
+
+sya.obj: sya.asm
+	tasm -ml /zi sya
+
+
+dline.exe: dline.c sya.obj
+	bcc -ml -v dline.c sya.obj
+
+sx.exe: sx.c sya.obj
+	bcc -ml -v sx.c sya.obj

@@ -1,0 +1,17 @@
+
+ramb.cpe: vectors.obj ramb.obj char.obj segahdr.obj
+	snlink /m /o 0 /x $300200 @ramb.lnk,ramb.cpe,ramb.sym
+	fconvert /s ramb.cpe /x
+	copy fconvert.bin f:\link\pal\ramb.bin
+
+vectors.obj:	vectors.s macros.i equates.i
+	snasm68k /g /o l+,v+ /k /l /w vectors.s,vectors.obj
+
+segahdr.obj:	segahdr.s
+	snasm68k /g /o l+,v+ /k /l /w segahdr.s,segahdr.obj
+
+ramb.obj:	ramb.s macros.i equates.i
+	snasm68k /g /o l+,v+ /k /l /w ramb.s,ramb.obj
+
+char.obj:	char.s macros.i equates.i
+	snasm68k /g /o l+,v+ /k /l /w char.s,char.obj

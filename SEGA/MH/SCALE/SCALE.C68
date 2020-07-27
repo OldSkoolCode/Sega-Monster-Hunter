@@ -1,0 +1,611 @@
+/***
+ *			PDQ Sprite Scaler for Nuclear Rush
+ *				Copyright 1993, Futurescape Productions
+ *				All Rights Reserved
+ *				History:
+ *					03/15/93:	Started, KLM.
+ *					04/27/93:	Added RLE support, KLM.
+ ***/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "sega.h"
+
+#define	DEBUG	TRUE
+
+#if DEBUG
+extern void	Bomb(char *fmt, ...);
+extern void Debug(char *fmt, ...);
+extern ULONG	SYS_VCNT;
+int			old_big_x;
+int			old_big_y;
+int			old_rem_x;
+int			old_rem_y;
+#endif
+
+#define	XMAX	256
+
+struct SPRLIST {
+	WORD	y;
+	UWORD	link;
+	UWORD	chr;
+	WORD	x;
+};
+
+extern BYTE		SEND_LEFT;
+extern struct SPRLIST RIGHT_SPRLIST[80],LEFT_SPRLIST[80],WORK_SPRLIST[80];
+extern WORD		SYS_LASTSPR;
+extern UWORD	SYS_LASTCHR;
+extern UWORD	SYS_BASECHR;
+extern UWORD	WORK_CHRLIST[8192];	/*	Maximum number of characters at a time	*/
+
+UWORD	ScaleCode[XMAX*4];	/* Code to generate a scanline of scaled image */
+WORD	DestOffs[XMAX];
+UWORD	*PDQS_SourceAddr;
+UWORD	*PDQS_DestAddr;
+WORD	DBlockSize;				/* Destination sprite block size in bytes */
+WORD	DExtra;					/* Extra bytes to skip in dest per scanline */
+WORD	DEnd;						/* Left over scanline count */
+UWORD	Old_LastCHR;			/* For computing total sprite size */
+
+/**********************************************************
+ Scale enlarges or diminishes a source rectangle of
+ a bitmap to a destination rectangle.
+
+ Entry:
+	swidth  - Width in pixels of the source bitmap
+	sheight - Height in pixels of the source bitmap
+	dwidth  - Width in pixels of the destination bitmap
+	dheight - Height in pixels of the destination bitmap
+**********************************************************/
+
+/***
+	This code generates assembly code to be called every scanline that is
+	needed to be scaled.  This code moves pixels from the proper offsets
+	into a data buffer with the proper offsets.
+
+	Optimisations could be done when pixels need to be replicated (the
+	sprite got larger than the source), but this code is a first pass.
+
+	Code is also added to the end to clear the rest of the sprite buffer.
+	This cleans up the extra pixels added to each scanline by characterizing
+	the data.
+
+		Pixel transfer functions:
+		SOFFS = Source X data offset
+		DOFFS = Destination X data offset
+
+		SOFFS	=	$0AAA
+		DOFFS	=	$0555
+                
+48E7 00C0       	MOVEM.L	A0-A1,-(SP)			; Save used registers
+
+207C 1234 5678  	MOVEA.L	#$12345678,A0		; Load address into A0
+227C 1234 5678  	MOVEA.L	#$12345678,A1		; Load address into A1
+
+1028 0AAA       	MOVE.B	SOFFS(A0),D0		; Left pixel to Left pixel
+0200 00F0       	ANDI.B	#$F0,D0
+1340 0555       	MOVE.B	D0,DOFFS(A1)
+                
+1028 0AAA       	MOVE.B	SOFFS(A0),D0		; Right pixel to Left pixel
+E908            	LSL.B		#4,D0
+1340 0555       	MOVE.B	D0,DOFFS(A1)
+                
+1028 0AAA       	MOVE.B	SOFFS(A0),D0		; Left pixel to Right pixel
+E808            	LSR.B		#4,D0
+8129 0555       	OR.B		D0,DOFFS(A1)
+                
+1028 0AAA       	MOVE.B	SOFFS(A0),D0		; Right pixel to Right pixel
+0200 000F       	ANDI.B	#$0F,D0
+8129 0555       	OR.B		D0,DOFFS(A1)
+                
+* Byte scaling routine, for twice as fast but less accurate scaling:
+                
+1368 0AAA 0555  	MOVE.B	SOFFS(A0),DOFFS(A1)
+                
+* Pixel clearing code:
+
+02A9 FFF0 0000  	ANDI.L	#$FFF00000,DOFFS(A1)
+0555 
+42A9 0555       	CLR.L		DOFFS(A1)
+
+* Jump table code:  (for RLE)
+4EB9 0000 0062		JSR		$62
+4EF9 0000 0062		JMP		$62
+                
+4CDF 0300       	MOVEM.L	(SP)+,A0-A1		; Restore used registers
+4E75            	RTS
+
+***/
+
+static void
+Scale(short swidth,short sheight,register short dwidth,register short dheight)
+{
+	register short		e;
+	register short		d;
+	register short		sd;
+	register short		y;
+	register UWORD		*code_ptr;
+	register WORD		*offs_ptr;
+	register BYTE		**SAddr;
+	register BYTE		**DAddr;
+	register BYTE		*sav_ptr;
+
+	/* Build a rendering table for X offsets to source pixels */
+	code_ptr = ScaleCode;
+	/* MOVEM.L	A0-A1,-(SP)			; Save used registers */
+	*code_ptr++ = 0x48E7;
+	*code_ptr++ = 0x00C0;
+	/* MOVEA.L	#$12345678,A0		; Load address into A0 */
+	*code_ptr++ = 0x207C;
+	SAddr = (BYTE **)code_ptr;
+	*SAddr = (BYTE *)PDQS_SourceAddr;
+	code_ptr += 2;
+	/* MOVEA.L	#$12345678,A1		; Load address into A1 */
+	*code_ptr++ = 0x227C;
+	DAddr = (BYTE **)code_ptr;
+	*DAddr = (BYTE *)PDQS_DestAddr;
+	code_ptr += 2;
+
+	swidth <<= 1;
+	y = 0;
+	e = swidth-dwidth;
+	offs_ptr = DestOffs;
+	for (d=0; d < (dwidth >> 1); d++) {
+		/* MOVE.B	SOFFS(A0),DOFFS(A1) */
+		*code_ptr++ = 0x1368;
+		*code_ptr++ = y;					/* Source offset */
+		*code_ptr++ = *offs_ptr++;		/* Destination offset */
+		while (e >= 0) {
+			y++;
+			e -= dwidth << 1;
+		}
+		e += swidth;
+	}
+	/* Clear remaining bytes of destination data */
+	switch (DExtra) {
+		case 1:
+			/* CLR.B	DOFFS(A1) */
+			*code_ptr++ = 0x4229;
+			*code_ptr++ = *offs_ptr++;		/* Destination offset */
+			break;
+		case 2:
+			/* CLR.W	DOFFS(A1) */
+			*code_ptr++ = 0x4269;
+			*code_ptr++ = *offs_ptr++;		/* Destination offset */
+			break;
+		case 3:
+			/* CLR.B	DOFFS(A1) */
+			*code_ptr++ = 0x4229;
+			*code_ptr++ = *offs_ptr++;		/* Destination offset */
+			/* CLR.W	DOFFS(A1) */
+			*code_ptr++ = 0x4269;
+			*code_ptr++ = *offs_ptr++;		/* Destination offset */
+			break;
+	}
+	/* MOVEM.L	(SP)+,A0-A1		; Restore used registers */
+	*code_ptr++ = 0x4CDF;
+	*code_ptr++ = 0x0300;
+	/* RTS */
+	*code_ptr++ = 0x4E75;
+
+	sheight <<= 1;
+	swidth >>= 2;
+	e = sheight-dheight;
+	for (d=0; d < dheight; ) {
+		/* JSR to code that reads selected pixels and writes them out */
+		asm("\tjsr\t_ScaleCode");
+		while (e >= 0) {
+			/* Bump source address to the next scanline */
+			*SAddr += swidth;
+			e -= dheight << 1;
+		}
+		/* Bump destination address to the next scanline */
+		d++;
+		if ((d & 31) == 0)
+			*DAddr += DBlockSize;
+		else
+			*DAddr += 4;
+		e += sheight;
+	}
+	/* Build a routine to clear the leftover destination data */
+	sav_ptr = *DAddr;					/* Save the last scanline address */
+	code_ptr = ScaleCode;
+	/* MOVE.L	A1,-(SP)				; Save used register */
+	*code_ptr++ = 0x2F09;
+	/* MOVEA.L	#$12345678,A1		; Load address into A1 */
+	*code_ptr++ = 0x227C;
+	DAddr = (BYTE **)code_ptr;
+	*DAddr = sav_ptr;
+	code_ptr += 2;
+	offs_ptr = DestOffs;
+	for (d=(dwidth >> 1) + DExtra; d > 0; d--) {
+		/* CLR.B	DOFFS(A1) */
+		*code_ptr++ = 0x4229;
+		*code_ptr++ = *offs_ptr++;		/* Destination offset */
+	}
+	/* MOVE.L	(SP)+,A1			; Restore used register */
+	*code_ptr++ = 0x225F;
+	/* RTS */
+	*code_ptr++ = 0x4E75;
+	for (d=DEnd; d > 0; d--) {
+		/* JSR to code that clears one scanline */
+		asm("\tjsr\t_ScaleCode");
+		*DAddr += 4;
+	}
+}
+
+UWORD		FSrcOffs[512];		/* First pixel Source to Dest offset table */
+UWORD		LSrcOffs[512];		/* Last pixel Source to Dest offset table */
+
+static void
+RLE_Scale(short swidth,short sheight,register short dwidth,register short dheight)
+{
+	register short		e;
+	register short		d;
+	register short		x;
+	register short		y;
+	register short		skip;
+	register UWORD		*code_ptr;
+	register WORD		*offs_ptr;
+	register BYTE		**SAddr;
+	register BYTE		**DAddr;
+	register ULONG		*JAddr;		/* Jump location address */
+	register BYTE		*ptr_sav;
+
+	/* Blank out sprite buffer */
+	memset(PDQS_DestAddr,0,(SYS_LASTCHR - Old_LastCHR) << 5);
+
+	/* Build a rendering table for X offsets to source pixels */
+	code_ptr = ScaleCode;
+	/* MOVEM.L	A0-A1,-(SP)			; Save used registers */
+	*code_ptr++ = 0x48E7;
+	*code_ptr++ = 0x00C0;
+	/* MOVEA.L	#$12345678,A0		; Load address into A0 */
+	*code_ptr++ = 0x207C;
+	SAddr = (BYTE **)code_ptr;
+	*SAddr = (BYTE *)PDQS_SourceAddr;
+	code_ptr += 2;
+	/* MOVEA.L	#$12345678,A1		; Load address into A1 */
+	*code_ptr++ = 0x227C;
+	DAddr = (BYTE **)code_ptr;
+	*DAddr = (BYTE *)PDQS_DestAddr;
+	code_ptr += 2;
+	/* JSR      #$xxxxxxxx			; Jump to instruction */
+	*code_ptr++ = 0x4EB9;
+	JAddr = (ULONG *)code_ptr;
+	*JAddr = (ULONG)JAddr + 10;
+	code_ptr += 2;
+	/* MOVEM.L	(SP)+,A0-A1		; Restore used registers */
+	*code_ptr++ = 0x4CDF;
+	*code_ptr++ = 0x0300;
+	/* RTS */
+	*code_ptr++ = 0x4E75;
+
+	
+	swidth <<= 1;
+	x = 0;
+	FSrcOffs[0] = LSrcOffs[0] = 0;
+	e = swidth-dwidth;
+	offs_ptr = DestOffs;
+	for (d=0; d < (dwidth >> 1); d++) {
+		/* MOVE.B	SOFFS(A0),DOFFS(A1) */
+		*code_ptr++ = 0x1368;
+		*code_ptr++ = x;					/* Source offset */
+		*code_ptr++ = *offs_ptr++;		/* Destination offset */
+		while (e >= 0) {
+			x++;
+			e -= dwidth << 1;
+			FSrcOffs[x] = d;
+		}
+		LSrcOffs[x] = d;
+		e += swidth;
+	}
+	/* RTS */
+	*code_ptr++ = 0x4E75;
+
+	/* Point to the first MOVE.B instruction */
+	code_ptr = (UWORD *)((ULONG)JAddr + 10);
+	y = sheight;
+	sheight <<= 1;
+	swidth >>= 1;
+	e = sheight-dheight;
+	for (d=0; d < dheight; ) {
+		/* Set up to unpack RLE scanline */
+		if (**SAddr == 2) {
+			/* Blank line, skip it */
+			*SAddr += 2;
+			continue;
+		}
+		ptr_sav = *SAddr;
+		skip = **SAddr;
+		*SAddr += 1;
+		x = **SAddr;
+		x = LSrcOffs[x];				/* Adjust X to new scale */
+		skip = LSrcOffs[skip - 2];	/* Adjust scanline length to new scale */
+		*SAddr += 1;
+		*JAddr = (ULONG)JAddr + 10 + ((x + x + x) << 1);
+#if 1
+		skip = skip + x;
+		skip = skip + skip + skip;
+		*(code_ptr + skip) = 0x4E75;		/* Add RTS */
+		*SAddr -= x;				/* Make code point to real pixels in RLE run */
+		/* JSR to code that reads selected pixels and writes them out */
+		asm("\tjsr\t_ScaleCode");
+		*(code_ptr + skip) = 0x1368;		/* Replace MOVE.B */
+#else
+		*SAddr -= x;				/* Make code point to real pixels in RLE run */
+		/* JSR to code that reads selected pixels and writes them out */
+		asm("\tjsr\t_ScaleCode");
+#endif
+		*SAddr = ptr_sav;			/* Re-adjust source pointer */
+		while (e >= 0) {
+			/* Bump source address to the next scanline */
+			e -= dheight << 1;
+			/* Overflow protection... */
+			if (y <= 2)
+				continue;
+			y--;
+			*SAddr += **SAddr;
+		}
+		/* Bump destination address to the next scanline */
+		d++;
+		if ((d & 31) == 0)
+			*DAddr += DBlockSize;
+		else
+			*DAddr += 4;
+		e += sheight;
+	}
+}
+
+/***
+ *		PDQS_Scale:	PrettyDamnQuickScaler Scale function
+ *
+ *		Input:
+ *			anm_file:	Pointer to animation data (FPA scale format)
+ *			anm:			Animation number in file
+ *			frm:			Frame number in the animation
+ *			xp:			X screen position
+ *			yp:			Y screen position
+ *			sf:			Scale factor
+ *								(256 is 1:1, 1 is the smallest 65535 is the largest)
+ ***/
+
+void
+PDQS_Scale(UWORD *anm_file, WORD anm, WORD frm, WORD xp, WORD yp, UWORD sf)
+{
+	WORD				big_x,big_y;	/* Large (4x4) sprite variables */
+	WORD				rem_x,rem_y;	/* Remainder (NxN) sprite variables */
+	WORD				xs,ys;			/* X,Y position of the current screen chr */
+	WORD				width;			/* Width in characters of frame */
+	WORD				height;			/* Height in characters of frame */
+	UWORD				i,j;
+	UWORD				offset;
+	UWORD				attributes;
+	UWORD				workIndex;
+	WORD				FrameX,FrameY;
+	WORD				FrameWidth,FrameHeight;
+	WORD				DestWidth,DestHeight;
+	struct SPRLIST	*SListPtr;	/* Pointer to work sprite list */
+	UWORD				*anim_ptr;	/* Pointer to animation */
+	UWORD				*wptr;		/* Temporary pointer */
+	UWORD				flags;
+
+	wptr = anm_file;							/*	Base of animation file	*/
+	flags = *(wptr + 6);						/* Get animation files flags */
+	if ((flags & 2) == 0)					/* Do only Bitmap type files */
+		return;
+	wptr++;										/*	Skip palette offset	*/
+	/*	Add animation list offset	*/
+	anim_ptr = (UWORD *)((BYTE *)anm_file + *wptr);
+#if DEBUG
+	/* Determine the number of animations and flag if overflow */
+	i = *(wptr+1) - *wptr;
+	if (anm > i)
+		Bomb("Animation Overflow\n anm_file=$%08lX anm=%d frm=%d",anm_file,anm,frm);
+#endif
+	/*	Point to requested animation	*/
+	anim_ptr += anm * 2;
+	/*	If valid frame number requested	*/
+#if DEBUG
+	if (frm >= *anim_ptr++)
+		Bomb("Frame Overflow\n anm_file=$%08lX anm=%d frm=%d",anm_file,anm,frm);
+#else
+	if (frm >= *anim_ptr++)
+		return;
+#endif
+	/*	Add animation frame pointer offset	*/
+	wptr = (UWORD *)((BYTE *)anm_file + *anim_ptr);
+	/*	Add animation frame data offset	*/
+	wptr = (UWORD *)((BYTE *)anm_file + *(wptr + frm));
+	wptr++;			/*	Skip number of sprites in frame	*/
+	wptr++;			/*	Skip hotspot offset	*/
+	/*	Add to list to DMA	*/
+	SListPtr = &WORK_SPRLIST[SYS_LASTSPR];
+	/*	Skip Sprite Y position	*/
+	wptr++;
+	/*	Next sprite to link	*/
+	FrameWidth = *(BYTE *)wptr;
+	FrameHeight = *(((BYTE *)wptr)+1);
+	wptr++;
+	/*	Sprite's first catalog character : Add base character value	*/
+	offset = *wptr;
+	attributes = offset & 0xF800;
+	/*	Only get the character data for left display	*/
+	if (SEND_LEFT) {
+		i = 16 * (offset & 0x07FF);	/*	Word offset to char	*/
+		/*	Get address of Character definitions */
+		PDQS_SourceAddr = anm_file;			/*	Base of animation file	*/
+		PDQS_SourceAddr = (UWORD *) ((BYTE *)anm_file +
+			*(PDQS_SourceAddr + 5));
+		PDQS_SourceAddr++;			/*	Catalog count, don't need	*/
+		PDQS_SourceAddr += i;		/*	Point to the first character	*/
+	}
+	workIndex = 16 * (SYS_LASTCHR - SYS_BASECHR); /* Gives character number	*/
+	PDQS_DestAddr = &WORK_CHRLIST[workIndex];
+#if DEBUG
+	if ((LONG)PDQS_DestAddr > 0)
+		Bomb("ROM Write Attempt\n anm_file=$%08lX anm=%d frm=%d",anm_file,anm,frm);
+#endif
+	/* Calculate the destinations width and height */
+	DestWidth = (long)FrameWidth * sf >> 8;
+	DestHeight = (long)FrameHeight * sf >> 8;
+	/* Hotspot is at Lower Middle of sprite */
+	FrameX = xp - DestWidth / 2 + 0x80;
+	FrameY = yp - DestHeight + 0x80;
+
+	if (!DestWidth || !DestHeight)
+		/* Don't scale anything that is too tiny */
+		return;
+	/* Calculate width and height in characters */
+	width = (DestWidth - 1 + 7) >> 3;
+	height = (DestHeight - 1 + 7) >> 3;
+	/* If the width is larger than our offset buffer can hold... */
+	if (width >= (XMAX/8))
+		return;
+	/* Determine if we will overflow the buffer or not */
+	i = ((width * height) * 16) + workIndex;
+	if (i > 8192)
+		return;
+	/* Calculate how many extra bytes are left per destination scanline */
+	DExtra = (width << 2) - (DestWidth >> 1);
+	/* Generate optimal Genesis sprites for the scaler */
+	big_x = width >> 2;
+	big_y = height >> 2;
+	rem_x = width & 3;
+	rem_y = height & 3;
+	if (big_y && rem_y) {
+		big_y++;
+		rem_y = 0;
+	}
+#if DEBUG
+	old_big_x = big_x;
+	old_big_y = big_y;
+	old_rem_x = rem_x;
+	old_rem_y = rem_y;
+#endif
+	/* Compute how many scanlines are left over after scaling */
+	if (big_y)
+		DEnd = (big_y << 5) - DestHeight;
+	else
+		DEnd = (rem_y << 3) - DestHeight;
+	/* Compute offset for skipping to the next sprite block... */
+	DBlockSize = ((((big_x << 2) + rem_x) - 1) << 7) + 4;
+	ys = 0;
+	/* Generate offset table for Code generator */
+	if (SEND_LEFT) {
+		offset = 0;
+		wptr = (UWORD *)DestOffs;
+		for (j=big_x; j; j--) {
+			for (i=0; i < 4; i++) {
+				*wptr++ = offset++;
+				*wptr++ = offset++;
+				*wptr++ = offset++;
+				*wptr++ = offset++;
+				if (big_y)
+					offset += 128-4;
+				else
+					offset += rem_y * 32 - 4;
+			}
+		}
+		for (i=rem_x; i; i--) {
+			*wptr++ = offset++;
+			*wptr++ = offset++;
+			*wptr++ = offset++;
+			*wptr++ = offset++;
+			if (big_y)
+				offset += 128-4;
+			else
+				offset += rem_y * 32 - 4;
+		}
+	}
+	/* Generate optimal sprite list */
+	Old_LastCHR = SYS_LASTCHR;
+	while (big_y) {
+		xs = 0;
+		while (big_x) {
+			/* Generate 4x4 sprite */
+			SListPtr->y = FrameY + ys;
+			SListPtr->link = 0x0F00 + SYS_LASTSPR + 1;
+			if (SEND_LEFT)
+				SListPtr->chr = SYS_LASTCHR + attributes;
+			else
+				SListPtr->chr = LEFT_SPRLIST[SYS_LASTSPR].chr;
+			SListPtr->x = FrameX + xs;
+			SListPtr++;
+			big_x--;
+			xs += 4*8;
+			if (SEND_LEFT)
+				SYS_LASTCHR += 16;
+			SYS_LASTSPR++;
+		}
+		if (rem_x) {
+			/* Generate Nx4 sprite */
+			SListPtr->y = FrameY + ys;
+			SListPtr->link = ((((rem_x-1) << 2) + 3) << 8) + SYS_LASTSPR + 1;
+			if (SEND_LEFT)
+				SListPtr->chr = SYS_LASTCHR + attributes;
+			else
+				SListPtr->chr = LEFT_SPRLIST[SYS_LASTSPR].chr;
+			SListPtr->x = FrameX + xs;
+			SListPtr++;
+			if (SEND_LEFT)
+				SYS_LASTCHR += rem_x * 4;
+			SYS_LASTSPR++;
+		}
+		big_x = width >> 2;
+		big_y--;
+		ys += 4*8;
+	}
+	/* Do sprites for objects less than Nx4 */
+	if (rem_y) {
+		xs = 0;
+		while (big_x) {
+			/* Generate 4xN sprite */
+			SListPtr->y = FrameY + ys;
+			SListPtr->link = (((rem_y-1) + 0xC) << 8) + SYS_LASTSPR + 1;
+			if (SEND_LEFT)
+				SListPtr->chr = SYS_LASTCHR + attributes;
+			else
+				SListPtr->chr = LEFT_SPRLIST[SYS_LASTSPR].chr;
+			SListPtr->x = FrameX + xs;
+			SListPtr++;
+			if (SEND_LEFT)
+				SYS_LASTCHR += 4 * rem_y;
+			big_x--;
+			xs += 4*8;
+			SYS_LASTSPR++;
+		}
+		if (rem_x) {
+			/* Generate NxN sprite */
+			SListPtr->y = FrameY + ys;
+			SListPtr->link = ((((rem_x-1) << 2) | rem_y-1) << 8) +
+				SYS_LASTSPR + 1;
+			if (SEND_LEFT)
+				SListPtr->chr = SYS_LASTCHR + attributes;
+			else
+				SListPtr->chr = LEFT_SPRLIST[SYS_LASTSPR].chr;
+			SListPtr->x = FrameX + xs;
+			SListPtr++;
+			if (SEND_LEFT)
+				SYS_LASTCHR += rem_x * rem_y;
+			SYS_LASTSPR++;
+		}
+	}
+#if DEBUG
+/*
+	if ((ULONG)wptr > (ULONG)&DestOffs[XMAX])
+		Bomb("Offset List Overflow\n anm_file=$%08lX anm=%d frm=%d\n Offs_Ptr = $%08lX\n DestOffs[XMAX] = $%08lX\n bx=%d by=%d rx=%d ry=%d",
+			anm_file,anm,frm,(ULONG)wptr,(ULONG)&DestOffs[XMAX],old_big_x,old_big_y,old_rem_x,old_rem_y);
+*/
+	if ((ULONG)SListPtr > (ULONG)&WORK_SPRLIST[80])
+		Bomb("Sprite List Overflow\n anm_file=$%08lX anm=%d frm=%d",anm_file,anm,frm);
+#endif
+	/* Do scale, if left frame */
+	if (SEND_LEFT)
+	 	if (flags & 8)					/* RLE Compressed file? */
+			RLE_Scale(FrameWidth,FrameHeight,DestWidth,DestHeight);
+		else
+			Scale(FrameWidth,FrameHeight,DestWidth,DestHeight);
+}

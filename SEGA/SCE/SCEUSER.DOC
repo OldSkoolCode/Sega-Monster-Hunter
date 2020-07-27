@@ -1,0 +1,98 @@
+
+To: 	Scat users
+From:	Gordon Haberfelde
+Re:	New version of Scat
+                                                      1 July 1992
+
+
+
+
+  Version 2.20 of SCE (formerly Scat) is being released. There are some
+  significant changes and bug fixes.
+
+
+  The changes include the following:
+
+
+    -  File names are now uniquely specified by type.  The general .GEN
+    suffix is no longer used. Users will need to rename their files
+    to reflect this.  Map files have the suffix .GMP; animation files
+    have the suffix .GAN.  This means that the load/save requestor
+    boxes will only show files of interest depending on the mode in which
+    SCE is invoked.
+
+
+    -  When loading palettes, SCE asks if a map or sprite palette is needed
+    and then shows a list of map (.GMP) or sprite (.GAN) files as
+    appropriate.
+
+    -  Saving/loading of files has been automated somewhat in that the user
+    can now type in part of a name and SCE will append the correct file
+    extension, etc.
+
+    -  The name of the product has been changed to SCE (pronounced 'ski')
+    from Scat. SCE stands for Sega Character Editor. The options remain
+    the same. The latest version is 2.20.
+
+
+  Bugs have been fixed, as follows:
+
+   -  Downloading sprites now places them at approximately their vertical
+   position in SCE. The program was failing to adjust for the menu bar,
+   thus pushing the sprites down too far.
+
+   -  The brush pickup and x draw functions were working on even pixels only.
+   That is, skipping every other pixel. This turns out to have been due
+   to the mouse driver. Use of the logitech version 5 or 6 mouse driver
+   with the Microsoft mouse solves this.
+
+   -  The invert color for brush pickup and character mode cursor is now
+   a special white that can be seen even against a white background.  This
+   solves the problem of invisible or difficult to see cursors and
+   crosshairs.
+
+   -  The problem of trying to load a sprite file in map mode and vice versa,
+   has been rendered moot by the first change described. However, if files
+   are not correctly named (for example a sprite file has a suffix of
+   .GMP), the system will detect this and issue a message.
+
+   -  A black rectangle was being left behind in the character edit window.
+   This has been changed to use the color 0 of palette 0, to match the
+   character box outline.
+
+   -  Animation sequences of 40 or more frames were crashing the Genesis. Now
+   a message is issued and the sequence is not downloaded.
+
+
+   -  The speed settings for viewing animations have been adjusted to work in
+   1/32nd of a second increments. Setting 0 means no delay, setting 1
+   means 1/32nd of a second delay, 2 means a 1/16th of a second delay,
+   etc. In addition, the frame speed being downloaded to the genesis
+   was being multiplied by 2 for some reason. This is no longer being done.
+   The net effect is more control over animation speed, and faster
+   animations on the Genesis.
+
+   -  Some bugs with the F3 File Load interface have been fixed.
+   I have identified some others that were not on the list. These will
+   be fixed in a future release.
+
+   -  Picking NEW on the map menu will no longer leave a character displayed
+   where the cursor was when the selection was made.
+
+   -  The 'primitives' drawing options in the image window (pixel draw,
+   line, rectangle, circle, etc) no longer spill over onto the map
+   window. In addition, the menu bar is updated to show the user
+   what action is being taken (for example, 'line draw mode').
+
+   -  Selecting a Genesis download in an invalid situation now produces an
+   error message instead of no action.
+
+   -  The undo command now 'undoes' just the last brush action on the map 
+   screen, instead of undoing all brushes dropped onto the map.
+
+   -  There were various mouse handling bugs too abtruse to mention in detail.
+   The ones I found have been fixed.  However it is possible that others
+   remain. If you find one, please let me know.
+
+
+

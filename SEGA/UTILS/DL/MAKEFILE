@@ -1,0 +1,7 @@
+
+
+.asm.obj:
+	tasm /ml /zi downa
+
+dl.exe: dl.c downa.obj
+	bcc /v /ml dl.c downa.obj

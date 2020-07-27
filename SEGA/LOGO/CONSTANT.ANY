@@ -1,0 +1,9 @@
+;*************************************************************************
+;*                         CONSTANTS                                     *
+;*************************************************************************
+;This is not actually used in this demonstartion.
+;
+;constants and tables should reside here, as they can be referenced by
+;more optimal word addresses instead of long addresses.
+
+

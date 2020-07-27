@@ -1,0 +1,109 @@
+                            FUTURESCAPE PRODUCTIONS
+                                BRIEF TASK LIST
+
+============================================================================
+
+                                    Sample:
+
+TASK #    ID DATE    FINISHED   TIME      WHO?             LEADER
+_6____    _4/21/93   04/22/93   __8_Hrs   Joe Smith_____   Kevin___________
+                   DESCRIPTION                           FILE          PREV.
+Fix flicker bug in enahancement U.I. screen animation_   UI.C_______   #_2_
+
+============================================================================
+
+Milestone:  Level 2 and digitized sounds for first Level
+Game:       Monster Hunter
+Due Date:   04/22/93
+
+_1____    _4/22/93   __/__/__   __8_Hrs   Ken Hurley____   Ken_____________
+Put Graphics files into level 2 file__________________   lvl2graf.s_   #___
+
+_1a___    _4/22/93   __/__/__   __4_Hrs   Ken Hurley____   Ken_____________
+Make Monster lists for artists________________________   ___________   #___
+
+_2____    _4/22/93   __/__/__   __8_Hrs   Ken Hurley____   Ken_____________
+Enter data for wall sets level 2______________________   lvl2map.s__   #___
+
+_3____    _4/22/93   __/__/__   __4_Hrs   Ken Hurley____   Ken_____________
+Enter AI table for monsters___________________________   lvl2map.s__   #1,2
+
+_4____    _4/22/93   __/__/__   __8_Hrs   Ken Hurley____   Ken_____________
+Add new AI routine(s) for level2______________________   ai.s_______   #_3_
+
+_5____    _4/22/93   __/__/__   _16_Hrs   Ken Hurley____   Ken_____________
+Add power ups to first level__________________________   ai.s_______   #___
+
+_6____    _4/22/93   __/__/__   __2_Hrs   Ken Hurley____   Ken_____________
+Integrate Tom's Joystick routine______________________   tad_drv.s__   #___
+
+_7____    _4/22/93   __/__/__   _24_Hrs   Tom Debry_____   Ken_____________
+Look over GEMS and get to know it_____________________   ___________   #___
+
+_8____    _4/22/93   __/__/__   _16_Hrs   Tom Debry_____   Ken_____________
+Make digitized sounds from CD_________________________   sound.s____   #_7_
+
+_9____    _4/22/93   __/__/__   _16_Hrs   Tom Debry_____   Ken_____________
+Implement and test sounds in gems source______________   sound.s____   #_8_
+
+_10___    _4/22/93   __/__/__   __8_Hrs   Tom Debry_____   Ken_____________
+Locate CD's for sounds________________________________   ___________   #___
+
+_11___    _4/22/93   __/__/__   _16_Hrs   Ken Hurley____   Ken_____________
+AI for guns___________________________________________   ai.s_______   #___
+
+_12___    _4/22/93   __/__/__   __4_Hrs   Ken Hurley____   Ken_____________
+Fade to color palette routine ________________________   general.s__   #___
+
+_13___    _4/22/93   __/__/__   __4_Hrs   Ken Hurley____   Ken_____________
+Death sequence/end game_______________________________   mh.s_______   #_11
+
+_14___    _4/22/93   __/__/__   _12_Hrs   Tara Packard__   Ken_____________
+Finish T-Rex graphic__________________________________   trex.anm___   #___
+
+_15___    _4/22/93   __/__/__   _8__Hrs   Jeff Sturgeon_   Ken_____________
+Draw different guns for exposing like power ups_______   guns.anm___   #___
+
+_16___    _4/22/93   __/__/__   _8__Hrs   Jeff Sturgeon_   Ken_____________
+Finish up mutated-trex scientist guy from hell________   mutrex.anm_   #___
+
+_17___    _4/22/93   __/__/__   _4__Hrs   Jeff Sturgeon_   Ken_____________
+Finish hut for mutated-trex man_______________________   muthut.anm_  #___
+
+_18___    _4/22/93   __/__/__   _8__Hrs   Jeff Sturgeon_   Ken_____________
+Graphics clean-up_____________________________________   ___________   #___
+
+_19___    _4/22/93   __/__/__   _8__Hrs   Ken Hurley____   Ken_____________
+Integrate digitized sounds from Tom___________________   ___________   #_10
+
+_20___    _4/22/93   __/__/__   _12__Hrs   Ken Hurley____   Ken_____________
+Bug fixes_____________________________________________   ___________   #___
+
+
+***** Possible additions if time permits ******
+
+_21___    _4/22/93   __/__/__   _10_Hrs   Ken Hurley____   Ken_____________
+Take Kevins scale code and implement in assembly______   scale.s____   #___
+
+_22___    _4/22/93   __/__/__   _16_Hrs   Ken Hurley____   Ken_____________
+Implement floor code for Point of View________________   scale.s____   #___
+
+_23___    _4/22/93   __/__/__   _16_Hrs   Ken Hurley____   Ken_____________
+Spot hits for monsters________________________________   ai.s_______   #___
+
+______    __/__/__   __/__/__   ____Hrs   ______________   ________________
+______________________________________________________   ___________   #___
+
+______    __/__/__   __/__/__   ____Hrs   ______________   ________________
+______________________________________________________   ___________   #___
+
+______    __/__/__   __/__/__   ____Hrs   ______________   ________________
+______________________________________________________   ___________   #___
+
+______    __/__/__   __/__/__   ____Hrs   ______________   ________________
+______________________________________________________   ___________   #___
+
+______    __/__/__   __/__/__   ____Hrs   ______________   ________________
+______________________________________________________   ___________   #___
+
+

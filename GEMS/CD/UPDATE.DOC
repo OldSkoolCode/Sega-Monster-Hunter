@@ -1,0 +1,10 @@
+
+07/23/93
+
+There is a new file with this gems cd patch.  It is called 
+GEMCDASM.68K.  Inside this file is the serviceZ80DMA() routine 
+rewritten in assembler.
+
+Jon Miller DID NOT write this new code and should not be contacted for 
+questions on this file.  
+

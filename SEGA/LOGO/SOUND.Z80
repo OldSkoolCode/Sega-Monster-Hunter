@@ -1,0 +1,184 @@
+;Z80 FM sound code.
+;This code runs the example from the back of the manual.
+;Note that only registers from the first bank are ever
+;set up as the sample sound is played on channel 1 only.
+
+;This code does not access the ROM, but if it were to do
+;so, it would have to check the variable 'NoROM' to see
+;that access was permitted. The 68000 sets the flag
+;whenever ROM access is not permitted, for example, just
+;before it is about to do DMA from memory, and resets
+;the flag again when it has finished.
+
+	org	0
+
+;initial start up code
+	di			;no interrupts
+	jp	start
+;IMPORTANT variable (Z80 address 4)
+NoROM	db	0		;4: -1 when ROM access forbidden
+
+;variables (Z80 address 5)
+Note	db	0		;5: note number
+Octave	db	0		;6: mid range octave
+Play	db	0		;7: -1 when sound wanted
+Stop	db	0		;8: -1 to stop current note
+
+
+;real code
+start	ld	sp,2000h	;top of RAM
+	ld	de,4000h	;main fm port address
+
+	call	waitfm		;wait till chip not busy
+
+	ld	hl,data		;main data
+	ld	b,(edata-data)/2 ;length
+	call	loadfm		;load data
+
+nonote	ld	a,(Play)	;get flag
+	and	a		;test
+	jp	z,nonote	;wait until start flagged
+	xor	a		;clear a
+	ld	(Play),a	;clear start flag
+	ld	(Stop),a	;clear stop flag
+
+	ld	a,(Note)	;get note number (0..11)
+	cp	12		;check valid
+	jr	c,noteok	;is valid
+	xor	a		;use 0
+
+noteok	add	a,a		;word table
+	ld	c,a		;c=2*note
+	ld	b,0		;bc=2*note
+	ld	hl,freqs	;point at frequency table
+	add	hl,bc		;index note
+	ld	a,(Octave)	;get octave
+	add	a,a		;*2
+	add	a,a		;*4
+	add	a,a		;*8
+	ld	c,(hl)		;get lo byte
+	inc	hl		;pointto hi byte
+	add	a,(hl)		;add 8* octave
+	ld	b,a		;save correct hi byte
+	call	setfreq		;set channel 1 frequency
+
+	ld	hl,keyon	;point to key on data
+	call	loadfm1		;start sound
+
+hold	ld	a,(Play)	;get start flag
+	and	a  		;check it
+	jp	nz,new		;new note if start set
+	ld	a,(Stop)	;get stop flag
+	and	a		;check it
+	jp	z,hold		;loop if no stop flag
+
+new	ld	hl,keyoff	;point to key off data
+	call	loadfm1		;kill sound
+
+	jp	nonote		;wait for next sound
+
+freqs	dw	617		;0 - octave table (semitones)
+	dw	653
+	dw	692
+	dw	733
+	dw	777
+	dw	823
+	dw	872
+	dw	924
+	dw	979
+	dw	1037
+	dw	1099
+	dw	1164		;11
+
+data	db	022h,000h
+	db	027h,000h
+	db	028h,000h
+	db	028h,001h
+	db	028h,002h
+	db	028h,004h
+	db	028h,005h
+	db	028h,006h
+	db	02Bh,000h
+	db	030h,071h
+	db	034h,00Dh
+	db	038h,033h
+	db	03Ch,001h
+	db	040h,023h
+	db	044h,02Dh
+	db	048h,026h
+	db	04Ch,000h
+	db	050h,05Fh
+	db	054h,099h
+	db	058h,05Fh
+	db	05Ch,094h
+	db	060h,005h
+	db	064h,005h
+	db	068h,005h
+	db	06Ch,007h
+	db	070h,002h
+	db	074h,002h
+	db	078h,002h
+	db	07Ch,002h
+	db	080h,011h
+	db	084h,011h
+	db	088h,011h
+	db	08Ch,0A6h
+	db	090h,000h
+	db	094h,000h
+	db	098h,000h
+	db	09Ch,000h
+	db	0B0h,032h
+	db	0B4h,0C0h
+	db	028h,000h
+edata
+
+keyon	db	028h,0F0h
+keyoff	db	028h,000h
+
+;entry:-
+;bc = fm frequenecy value
+;de = fm port address
+setfreq	call	waitfm		;wait for fm to be not busy
+	ex	de,hl		;fm address in hl
+	ld	(hl),0A4h	;set address
+	inc	l		;index data
+	ld	(hl),b		;hi byte
+	dec	l		;index address
+	ex	de,hl		;fm address in de
+	call	waitfm		;wait for fm to be not busy
+	ex	de,hl		;fm address in hl
+	ld	(hl),0A0h	;set address
+	inc	l		;index data
+	ld	(hl),c		;lo byte
+	dec	l		;index address
+	ex	de,hl		;fm address in de
+	ret
+
+
+;load fm register
+;entry:-
+;hl = ^data (register,value)
+;de = fm port address (4000h for channels 1..3, else 4002h for channels 4..6)
+loadfm1	ld	b,1
+;load fm registers
+;entry:-
+;hl = ^data (register,value)
+;de = fm port address (4000h for channels 1..3, else 4002h for channels 4..6)
+;b  = number of registers to load
+loadfm	ld	c,-1		;permits 255 registers to be set
+wait	call	waitfm		;wait till not busy
+	ldi			;set address
+	ldi			;set data
+	dec	e
+	dec	e		;de=orginal address
+	djnz	wait		;do all data
+	ret
+
+;wait for fm chip to be NOT busy
+;entry:-
+;de = 4000h
+waitfm	ld	a,(de)		;read port
+	and	a		;test
+	jp	m,waitfm	;loop while busy
+     	ret
+

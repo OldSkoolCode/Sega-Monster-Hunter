@@ -1,0 +1,53 @@
+                            MEMO
+                            ====
+
+TO:             GEMS Users
+
+FROM:           Jonathan Miller 
+                (@ HeadGames: (415) 558-7513 x1609)
+
+DATE:           4/26/93
+
+RE:             GEMS and the Mega CD
+
+OTHER FILES:    Z80CDROM.ASM, PZCDROM.S, ZMAC.MAC, CDGEMS.C
+
+
+This patch makes GEMS kind of work in the Mega CD environment. The
+basic problem is that the Z80 cannot directly access the shared
+RAM from the Mega CD. This RAM is where the GEMS module (*.ASM)
+data goes since there is no cartridge. The GEMS Z80 code is designed
+to directly access and transfer the data from the cart, so it just
+don't work in the Mega CD.
+
+This patch replaces the Z80 routine XFER68K which normally does
+a Z80 DMA from cartridge space, with a version of XFER68K which
+simply posts the request in Z80 RAM. This XFER68K then waits for
+the 68000 to come around, see the request, and do the transfer for
+the Z80. This modified Z80 driver is contained in "dc.b" format
+(for assembling with a 68000 assembler) in the file "Z80CDROM.ASM".
+To use the file, modify the statement in the file "GEMS.A":
+
+    include ..\gems\z80.asm
+
+to include "Z80CDROM.ASM" instead.
+
+The C routine ServiceZ80DMA() is contained in the file "CDGEMS.C". 
+ServiceZ80DMA should 
+be called several times per 60 Hz tick to check to see if the Z80 needs
+any data. Since this type of transfer is polled instead of demand driven,
+the real-time performance is not very good. This patch will be best
+for doing FM sound effects through GEMS, although I believe one CD
+developer is actually playing FM music. They claim that they simply
+recoded ServiceZ80DMA() in assembly, and then call it several times
+per tick.
+
+If you're inspired and want to hack around with the Z80 driver, I've
+included it in source form ("PZCDROM.S"). Note that we actually use a
+68000 macro set to simulate a Z80 assembler. That's why certain Z80
+opcodes will have a "z" infront of them -- to avoid a conflict with
+the 68000 opcodes. The MPW Macro file "ZMAC.MAC" is also included, as
+it contains a few macros used in "PZCDROM.S".
+
+Good Luck,
+Jon

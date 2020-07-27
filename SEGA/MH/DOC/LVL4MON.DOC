@@ -1,0 +1,55 @@
+
+				Level 4 Monsters
+
+1. Smoke Wyverns
+	Type: 1
+	Attacks: Fire Breath 
+            Attack Range: Close
+	Damage: 10 per hit
+	Speed: fast
+	# shots to kill: 4 shots each. Urns must be destroyed
+    BOSS: 5-Headed Hydra
+	Type: 1 (5)
+	Attacks: Shoots acid, fire, ice, smoke, tar
+	Attack Range: Far
+	Damage: 15 per head
+            Speed: Slow
+	# shots to kill: 25 to each head
+
+2. Temple Lions
+	Type: 1
+	Attacks: Bite
+	Attack Range: Close
+	Damage: 10 points per hit.
+	Speed: Fast
+	# shots to kill: 10
+    BOSS: Russian Lion Tamer
+	Type: 1
+	Attacks: Whip
+	Attack Range: Far
+	Damage: 20 points per hit
+	Speed: Fast
+	# shots to kill: 40 to head or body
+
+3. Zombie Ninjas
+	Type: 2
+	Attacks: One throws shurikens, other throws knives
+	Attack Range: Far
+	Damage: 10 per hit, 20 at Close Range
+	Speed: Fast
+	# shots to kill: 7
+   BOSS: Black Ninja
+	Type: 1
+	Attacks: 2 Poison Shurikens
+	Attack Range: Close or Far
+	Damage: 15 from afar. 30 at close range.
+	Speed: Very Fast
+	#: shots to kill: 10
+  
+    LEVEL BOSS: Undead Samurai Warrior
+	Type: 1
+	Attacks: Samurai Sword
+	Attack Range: Far
+	Damage: 40 points per hit.
+	Speed: Slow
+	# shots to kill: 50 shots to ying-yang symbol.

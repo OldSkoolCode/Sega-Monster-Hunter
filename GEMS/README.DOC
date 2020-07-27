@@ -1,0 +1,191 @@
+GEMS Driver - Update Version 2.5 for Microtec               5/21/91
+=============================================
+
+GEMS Update Version 2.5 is an update for any previous GEMS
+version 2 (2.0, 2.1, or 2.2). If you do not have one
+of these GEMS releases to apply this update to, download
+the 2.0 release from the Sega BBS, and then apply this
+update to it (4 files are replaced). Don't bother getting
+the 2.1 or 2.2 stuff - it is all replaced by this release.
+
+Included in GEMS25.ZIP
+along with this file are 4 files which should replace
+the corresponding files in the GEMS subdirectory of the
+original 2.0 (or updated to 2.1 or 2.2) release:
+
+     GEMS.EXE - the GEMS development system for DOS
+     GEMS.ABS - the ROM image for the Sega RAM/ROM board
+     GEMS.A   - the 68k assembly routines for use in a game
+     Z80.ASM  - the Z80 program in dc.b format for use in a game
+
+NOTE: The SHIP example in the 2.0 release has a separate copy
+of GEMS.A in the directory SHIP\MUSIC. Replace this GEMS.A as
+well before attempting to build SHIP with this update.
+
+Feel free to contact Jonathan Miller at Extended Play
+at (415) 469-9755 with problems, questions, or comments.
+
+GEMS 2.5 Release Notes
+======================
+
+New Features:
+-------------
+
+1) Volume Control. GEMS now provides opcodes for modifying the volume
+of FM patches. Volume adjustment is not provided for PSG and Digital
+patches. Note that a volume change only affects subsequent notes.
+Notes which are already ringing will not be effected.
+
+FM volume is adjustable on a channel by channel basis using
+the MIDI Volume Control Change message (Controller #7). Volume values
+range from 0 (off) to 127 (loudest). A volume setting of 127 plays the
+patch at the same volume it would play at in previous version of GEMS.
+The volume opcode is also supported in the Sequence Editor.
+
+There is also a Master Volume opcode, available only in the Sequence
+Editor (there is no MIDI controller for this opcode.) Master volume
+also ranges from 0 to 127, and also only affects FM. Master volume
+affects all FM channels, and can therefore be used to fade a song.
+
+2. 4-bit Samples. A very simple data compression technique is now
+supported for digital samples. A new switch in the Sample Editor allows
+for the selection between 8-bit (the only mode previously supported)
+and 4-bit samples. In 4-bit mode, only the most significant 4 bits of
+each sample are sent to the Genesis. The resulting data takes half the
+space, but at a significant degradation in sound quality.
+
+NOTE: The sample files imported into GEMS are still 8-bit files,
+regardless of the selection between 4-bit or 8-bit samples for playback.
+
+3. New Sequence Control Opcodes. The following new opcodes are provided
+in the Sequence Editor. There are no MIDI controllers for these opcodes.
+
+     STOP SONG       - stops the specified sequence. The special value
+                       of STOP SONG 255 will stop all sequences.
+
+     PAUSE SONG      - pauses the specified sequence.
+
+     RESUME          - resumes any paused sequences.
+
+     PAUSE LEVEL     - pauses the sequence whose number is stored in
+                       Mailbox #0.
+
+The PAUSE LEVEL opcode is useful for creating sound effects which pause
+the current background music, play the sound effect, and resume the
+background music. Since it is useful to have a single sound effect which
+can work with any background sequence, the PAUSE LEVEL opcode does not
+specify a specific sequence to pause, but rather it uses the value stored
+in mailbox #0. It is therefore necessary to place a STORE opcode at the
+beginning of each background sequence, to store its own sequence number
+into mailbox #0. For example, if sequence 4 contains the background music
+for a particular level, you would put the following opcode at the
+beginning of sequence 4:
+
+            STORE 4 IN MBOX 0
+
+4. Improved Hot Keys. The assignment of hot keys (<ALT>+<some other key>)
+has been modified to increase the number of operations that do not require
+a mouse click. (A hot key is indicated by a single, underlined letter
+in a menu item or on a button.)
+
+In particular, you can now access the main MODULE menu, even when the
+Sequence Bank window is open, by pressing ALT+M. You can now complete
+the editing of an opcode by pressing RETURN (ENTER), and can cancel the
+opcode by pressing ALT+C. You can now access the Sequence Editor's
+SEQUENCE menu (from which you can close the editor) by pressing ALT+S.
+Also, ALT+Y, ALT+N and ALT+C now work in yes/no/cancel situations.
+
+Bugs Fixed:
+-----------
+
+1) LFO Control. In previous versions of GEMS, playing any FM note would
+set the value of the single, shared LFO, even if the note did not use
+the LFO. In 2.5, the LFO frequency is only adjusted if the FM patch
+has the LFO enabled.
+
+Since the LFO is now generally running, it is important that FM patches
+which do not want any effect from the LFO have the AMS and PMS fields
+set to 0 (this is the default when a new FM patch is created.)
+
+
+Release Notes from 2.2
+======================
+
+Warnings:
+---------
+
+1) "\" in names. The Sound Module Compiler includes the names of
+patches, sequences, modulators, and samples in the output files,
+*.ASM, as comments. If any of the names in the sound module contain backslash
+characters ("\"), you may get some or no sound from your game:
+If "\" is the continuation character for your
+assembler, the next line of the file will be appended
+to the line with the "\", which is a comment field. This loss of
+data from the sound data tables in very difficult to diagnose, so
+be safe and search for "\" in the files.
+
+2) Zero duration loops - Be careful to avoid any GEMS sequencer loops
+having 0 duration (a LOOP START followed by a LOOP END on the same tick).
+This will hang the GEMS sequencer. Though you are unlikely to create such
+a case, it can get tricky when using GOTO and LABEL - a GOTO transfers
+the sequencer to the LABEL opcode with 0 delay.
+
+
+New Features:
+-------------
+
+1) MPU-401 Port Address Selection. It is now possible to set the
+I/O port address of the MPU-401 MIDI interface. The previous GEMS
+DOS program assumed an I/O base address of 330(hex). To select
+a different address, add the command line switch:
+
+     "-a <new address in hex>"
+
+when invoking GEMS. For example, to start GEMS with an MPU401 located
+at address 300(hex), and using interrupt IRQ2, type:
+
+     gems -a 300 -i 2
+
+2) The old GEMS had a command line switch "-ng" for use without a
+Genesis. This switch also disabled MIDI. There are now two separate
+switches:
+
+     "-ng"     for use without a Genesis - however, MIDI is enabled
+
+     "-nm"     for use without an MPU401 - however, the Genesis is expected
+
+Use both switches ("gems -nm -ng") for use without a Genesis and wihout MIDI.
+
+
+Bugs Fixed:
+-----------
+
+1) Pitchbend Initialization - Previous drivers did not automatically
+reset a GEMS sequencer channel's pitchbend to 0 when a sequence was
+started. Pitchbend values left over from previous sequences running
+on that channel would therefore affect the new sequence. The pitchbend
+value is now initialized to 0 at sequence start time. (GEMS.ABS,Z80.ASM)
+
+2) Sound Module Compiler and Samples - The previous sound module compiler
+would emit garbage in DBANK.ASM if unused slots in the sample bank were
+followed by used slots. This is fixed. (GEMS.EXE)
+
+3) Handshaking in gemsdmastart() - The handshaking between the 68000 and Z80
+for preventing Z80 accesses to cart space during DMA had a timing problem
+which could occassionally allow the Z80 accesses before DMA completed.
+This is fixed. (GEMS.A,Z80.ASM)
+
+4) RAM Utilization on the RAM/ROM card - GEMS used to allocated patches,
+modulators, and sequences in the first 64k of RAM on the RAM/ROM card,
+and samples in the second 64k of RAM. This limited sequences to about
+45k before crashing (literally) into the samples. The symptom was that
+a module with more than 45k of sequence data would play fine until any
+sample was loaded. Samples are now allocated from the end of the the 128k
+of RAM, working back towards the sequences. While the error checking is
+still weak here, at least RAM utilization is maximized.
+
+5) Notes ringing after gemspauseall() or gemsstopsong() - notes which
+were on when a pause or stopsong was issued from the 68k used to ring
+to completion. These are now clipped as appropriate.
+
+

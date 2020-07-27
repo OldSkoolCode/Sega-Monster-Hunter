@@ -1,0 +1,102 @@
+#define	DESTWIDTH		1
+#define	DESTHEIGHT		256	// starting destination width & height
+
+#define	WALLWIDTH		1		// source wall width and height
+#define	WALLHEIGHT		32
+
+#define	LOADCODE			1
+#define	STORECODE		2
+#define	NEXTSOURCECODE	3
+
+#define	YNEXTLINE	4
+
+#include	<stdio.h>
+
+char rtnstr[] = "SCALEY";
+int	lastcode = 0;
+int	nSrcMoves = 0;
+int	nDestMoves = 0;
+int	nAdds = 0;
+int	nDestAdd = 0;
+
+void interpolate(int srcSize, int dstSize);
+void writeCode(int incode);
+
+void main()
+{
+
+	int i, j;
+	int dstSize;
+
+	dstSize = DESTHEIGHT;
+
+
+	for (i=0; i<DESTHEIGHT/2; i++)
+ 		{
+		printf("SY%d_%d:\n", WALLHEIGHT, dstSize);
+
+		interpolate(WALLHEIGHT, dstSize);
+		writeCode(0);								// flush codes
+		printf("\t\trts\n");
+		dstSize -= 2;
+		}
+
+}
+
+void writeCode(int incode)
+{
+
+	int	i;
+	int	nDestAdd;
+
+	if (incode != lastcode)
+		switch (lastcode)
+			{
+			case 1:
+				if (nSrcMoves > 1)
+					printf("\t\tadda.w\t#%d,a0\n", (nSrcMoves-1) * YNEXTLINE);
+				printf("\t\tmove.b\t(a0)+,d0\n");
+				nSrcMoves = 0;
+				break;
+	
+			case 2:
+				nDestAdd = (nDestMoves-1) * 4;
+				for (i=nDestMoves; i>0; i--)
+					{
+					printf("\t\tmove.b\td0,$%d(a1)\n", nDestAdd);
+					nDestAdd -= 4;
+					}
+				nDestMoves = 0;
+				break;
+	
+			case 3:
+//				printf("\t\tadda.w\t#%d,a0\n", nAdds * YNEXTLINE);
+				nAdds = 0;
+				break;
+			}
+
+
+	switch (incode)
+		{
+		case 0:
+			nSrcMoves = 0;
+			nDestMoves = 0;
+			nAdds = 0;
+			break;
+
+		case 1:
+			nSrcMoves++;
+			break;
+
+		case 2:
+			nDestMoves++;
+			break;
+
+		case 3:
+			nAdds++;
+			break;
+		}
+
+	lastcode = incode;
+
+}

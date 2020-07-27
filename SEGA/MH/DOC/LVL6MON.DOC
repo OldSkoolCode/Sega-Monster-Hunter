@@ -1,0 +1,50 @@
+
+				Level 6 Monsters
+
+1. Green Slime
+	Type: 1
+	Attacks: Slime
+            Attack Range: Close or Far
+	Damage: 15 per hit from afar, 30 per hit from close range
+	Speed: fast
+	# shots to kill: 10 each
+    BOSS: Morphing Red Slime
+	Type: 1
+	Attacks: Biting head
+	Attack Range: Far
+	Damage: 25 per hit
+            Speed: Fast
+	# shots to kill: 25 then  5 flamethrower bursts
+
+2. Mutant Workers
+	Type: 4
+	Attacks: Claws, Handbags, Teeth, Donuts
+	Attack Range: Close or Far
+	Damage: 20 per hit (for each attack type)
+	Speed: Fast
+	# shots to kill: 20 to each worker
+
+    BOSS: Venus De Smilo
+	Type: 1
+	Attacks: Tongue
+	Attack Range: Close or Far
+	Damage: 25 points per lick
+	Speed: Very Fast
+	# shots to kill: 50 to body (10 for each limb and 10 for body), 25 to head
+
+3. Invisible Mutant Spectres
+	Type: 1
+	Attacks: Lethal Touch
+	Attack Range: Close
+	Damage: 50 per touch
+	Speed: Very Slow
+	# shots to kill: 25 each
+
+   LEVEL BOSS: Giant Radioactive Mutant
+	Type: 1 (10)
+	Attacks: Each of its 10 limbs and heads hit or bite. Big head pukes.
+	Attack Range: Close
+	Damage: 10 points per head and limb, 25 points for big head.
+	Speed: Fast
+	# shots to kill: 20 to each head and limb, 25 grenades to Big Mouth
+            

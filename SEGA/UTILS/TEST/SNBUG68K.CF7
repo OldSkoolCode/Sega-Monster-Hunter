@@ -1,0 +1,32 @@
+#readram
+ 00000000  003FFFFF
+ 00FF0000  00FFFFFF
+#writeram
+ 00000000  003FFFFF
+ 00FF0000  00FFFFFF
+#update
+ FF 0004
+#video
+ 26 50 3C
+#label level
+ 10 7F 7F
+#colour attributes
+ 0A 07 0F 3E E0 40 5E 04 0C 70 C0 0C 0A 00 00 00
+#mono attributes
+ 0F 07 0F 70 70 07 70 0F 09 70 01 07 0F 00 00 00
+#window
+ 01 00 00
+ 00 00 4F 11 0B 05
+ 00000200
+#window
+ 82 00 00
+ 00 11 4F 23 08 12
+ 00000544
+#window
+ 04 00 00
+ 00 35 4F 3A 01 24
+ 00000800
+#window
+ 03 01 00
+ 00 23 4F 35 08 24
+ 00002398

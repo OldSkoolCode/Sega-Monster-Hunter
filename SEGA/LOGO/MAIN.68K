@@ -1,0 +1,3113 @@
+	nolist
+      
+true		equ	1
+false		equ	0
+
+EXTSIZE		equ	$A0
+EXTCLEARED	equ	$00
+EXTNOTCLEARED	equ	$40
+EXTWORDS	equ	$00
+EXTOTHER	equ	$08
+EXTEVENBYTES	equ	$10
+EXTODDBYTES	equ	$18
+EXTTYPE		equ	$00
+EXTSRAM		equ	$20
+EXTEEPROM	equ	$40
+
+Pri		equ	%1000000000000000
+CP0		equ	%0010000000000000
+CP1		equ	%0100000000000000
+VF		equ	%0001000000000000
+HF		equ	%0000100000000000
+
+Pal0		equ	%0000000000000000
+Pal1		equ	%0010000000000000
+Pal2		equ	%0100000000000000
+Pal3		equ	%0110000000000000
+
+ROMBase		equ	$00000000
+SystemBase	equ	$00A00000
+VDPBase		equ	$00C00000
+RAMBase		equ	$00FF0000	;first byte of work RAM
+RAMEnd		equ	$01000000	;first byte AFTER work RAM
+
+Z80Base		equ	$A00000
+IOBase		equ	$A10000
+ControlBase	equ	$A11000
+
+SoundRam	equ	$A00000
+YM2612		equ	$A04000
+Z80Bank		equ	$A06000
+
+VDPData		equ	$C00000
+VDPControl	equ	$C00004
+VDPStatus	equ	$C00004
+VDPHVCount	equ	$C00008
+
+VersionNo	equ	$A10001
+Z80BusReq	equ	$A11100	; bit 8 (high=BusReq)
+Z80Reset	equ	$A11200	; bit 8 (low=Reset)
+
+IE0		equ	%0000000000100000
+IE1		equ	%0000000000010000
+IE2		equ	%0000000000001000
+M1		equ	%0000000000010000
+M2		equ	%0000000000001000
+M3		equ	%0000000000000010
+DISP		equ	%0000000001000000
+VSCR		equ	%0000000000000100
+HSCR		equ	%0000000000000010
+LSCR		equ	%0000000000000001
+RS0		equ	%0000000010000000
+RS1		equ	%0000000000000001
+STE		equ	%0000000000001000
+LSM1		equ	%0000000000000100
+LSM0		equ	%0000000000000010
+VSZ1		equ	%0000000000100000
+VSZ0		equ	%0000000000010000
+HSZ1		equ	%0000000000000010
+HSZ0		equ	%0000000000000001
+DMD1		equ	%0000000010000000
+DMD0		equ	%0000000001000000
+CD0		equ	%0100000000000000
+CD1		equ	%1000000000000000
+CD2		equ	%0000000000010000
+CD3		equ	%0000000000100000
+CD4		equ	%0000000001000000
+CD5		equ	%0000000010000000
+DMA		equ	%0000000000000010
+		
+Data1		equ	$A10003
+Data2		equ	$A10005
+Data3		equ	$A10007
+Ctrl1		equ	$A10009
+Ctrl2		equ	$A1000B
+Ctrl3		equ	$A1000D
+SCtrl1		equ	$A10013
+SCtrl2		equ	$A10019
+SCtrl3		equ	$A1001F
+
+KCodeUp		equ	0
+KCodeDown	equ	1
+KCodeLeft	equ	2
+KCodeRight	equ	3
+KCodeB		equ	4
+KCodeC		equ	5
+KCodeA		equ	6
+KCodeStart	equ	7
+
+
+
+
+testheld	macro
+	tst.b	KeyTab1+\1*2	;see if a joystick button is current pressed
+	endm
+
+testhit	macro
+	bclr.b	#0,KeyTab1+\1*2+1 ;see if a joystick button has been pressed (since last time)
+	endm
+
+clearhit	macro
+	sf	KeyTab1+\1*2+1	;flag joystick button has not been pressed
+	endm
+
+
+DI	macro
+	or.w	#$0700,sr	;disable 68000 interrupts
+	endm
+
+EI	macro
+	and.w	#$F8FF,sr	;enable all 68000 interrupts
+	endm
+
+Z80di	macro
+	move.w	#$100,Z80BusReq	;Z80 bus request
+	move.w	#$100,Z80Reset	;Z80 reset line high (NORMAL RUN STATE)
+	btst.b	#0,Z80BusReq	;Z80 bus grant acknowledge?
+	bne.s	*-8		;wait until bus granted
+	endm
+
+Z80ei	macro
+	move.w	#0,Z80BusReq	;Z80 bus release
+	endm
+ 
+Z80eiGO	macro
+	move.w	#0,Z80Reset	;Z80 reset line low
+	Z80ei			;release bus
+	move.w	#$100,Z80Reset	;Z80 reset line high (i.e. it has pulsed low)
+	endm
+BigBuffer	equ	$FFFF0000	;16K available, but only up to 2K used
+
+VDPSlaves	equ	$FFFF8000	;copy of contents of all 24 VDP registers
+VDP_ModeSet1	equ	$FFFF8001	;note that the register labels are on BYTE boundaries
+VDP_ModeSet2	equ	$FFFF8003
+VDP_PatternA	equ	$FFFF8005
+VDP_Window	equ	$FFFF8007
+VDP_PatternB	equ	$FFFF8009
+VDP_SpriteAttr	equ	$FFFF800B
+VDP_Reg6	equ	$FFFF800D
+VDP_BackCol	equ	$FFFF800F
+VDP_Reg8	equ	$FFFF8011
+VDP_Reg9	equ	$FFFF8013
+VDP_HIntReg	equ	$FFFF8015
+VDP_ModeSet3	equ	$FFFF8017
+VDP_ModeSet4	equ	$FFFF8019
+VDP_HScroll	equ	$FFFF801B
+VDP_Reg14	equ	$FFFF801D
+VDP_AutoInc	equ	$FFFF801F
+VDP_ScrollSize	equ	$FFFF8021
+VDP_WindowHPos	equ	$FFFF8023
+VDP_WindowVPos	equ	$FFFF8025
+DMASlaves	equ	$FFFF8026	;the 5 DMA registers are included (but not normally set with other regs)
+VDP_DMALenLo	equ	$FFFF8027
+VDP_DMALenHi	equ	$FFFF8029
+VDP_DMASrcLo	equ	$FFFF802B
+VDP_DMASrcMid	equ	$FFFF802D
+VDP_DMASrcHi	equ	$FFFF802F
+
+VDPLock		equ	$FFFF8030
+Z80Lock		equ	$FFFF8031
+NewScreen	equ	$FFFF8032
+CurScreen	equ	$FFFF8034
+Poll_Address	equ	$FFFF8036
+GPTimer		equ	$FFFF803A
+FlyBackFlag	equ	$FFFF803C
+KeyHit		equ	$FFFF803D
+KeyTab1		equ	$FFFF803E
+CellMapCols	equ	$FFFF804E
+CellMapRows	equ	$FFFF8050
+DMATemp		equ	$FFFF8052
+
+PalBuffer	equ	$FFFF8056
+
+selected	equ	$FFFF80D6
+chrattr		equ	$FFFF80D8
+scrbase		equ	$FFFF80DA
+twinklecol	equ	$FFFF80DC
+twinklech	equ	$FFFF80DE
+SpriteQtys	equ	$FFFF80E0
+
+scrollmode	equ	$FFFF80E4
+scrolltime	equ	$FFFF80E6
+
+windowmode	equ	$FFFF80E8
+windowtime	equ	$FFFF80EA
+
+rand		equ	$FFFF80EC
+columnaddr	equ	$FFFF80F4
+curheight	equ	$FFFF80F6
+scrollpos	equ	$FFFF80F8
+scrollspeed	equ	$FFFF80FA
+controltime	equ	$FFFF80FC
+
+playing		equ	$FFFF80FE
+
+
+
+DebugMode	equ	true	;true for development, false in FINAL ROM
+CheckCheckSum	equ	false	;true if checksum check required
+
+SegaCompany	equ	true	;TRUE if developed for SEGA
+ExternalRAM	equ	false	;TRUE if the cartridge expects EXTERNAL RAM
+Modem		equ	false	;TRUE if the cartridge expects MODEM
+
+
+CHECKSUM	equ	0	;sum of words from $200 to ROMEND
+ROMEND		equ	$fffff	;last address in ROM
+
+	org	0		;program base
+
+	dc.l	RAMEnd		;INITIAL SP - top of Genesis work RAM
+	dc.l	ICD_BLK4	;INITIAL PC - must point to ICD_BLK4
+
+	dc.l	EX_BusError
+	dc.l	EX_AddressError
+	dc.l	EX_IllegalInstruction
+	dc.l	EX_DivideBy0
+	dc.l	EX_CHK
+	dc.l	EX_TrapV
+	dc.l	EX_Priviledge
+	dc.l	EX_Trace
+
+	dc.l	EX_LineA
+	dc.l	EX_LineF
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+
+	dc.l	EX_Spurious
+	dc.l	EX_Level1
+	dc.l	EX_Level2
+	dc.l	EX_Level3
+	dc.l	EX_Level4
+	dc.l	EX_Level5
+	dc.l	EX_Level6
+	dc.l	EX_Level7
+
+	dc.l	EX_Trap0
+	dc.l	EX_Trap1
+	dc.l	EX_Trap2
+	dc.l	EX_Trap3
+	dc.l	EX_Trap4
+	dc.l	EX_Trap5
+	dc.l	EX_Trap6
+	dc.l	EX_Trap7
+	dc.l	EX_Trap8
+	dc.l	EX_Trap9
+	dc.l	EX_TrapA
+	dc.l	EX_TrapB
+	dc.l	EX_TrapC
+	dc.l	EX_TrapD
+	dc.l	EX_TrapE
+	dc.l	EX_TrapF
+
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+
+	ifne	*-$100
+	fail		;Vector data isn't 256 bytes long!
+	endc
+
+Header
+	dc.b	'SEGA GENESIS    '			;16
+
+	dc.b	'(C)','SEGA',' ','1992','.','03 '	;16
+
+	dc.b	'SEGA LOGO AND HARDWARE DEMONSTRATION            '				;48
+
+	dc.b	'SEGA LOGO AND HARDWARE DEMONSTRATION            '				;48
+
+	dc.b	'AI',' '
+	ifne	SegaCompany
+	dc.b	'0000000',' -','00'
+	endc
+	ifeq	SegaCompany
+	dc.b	'T-','0000000',' ','00'
+	endc						;14
+
+H_CheckSum
+	dc.w	CHECKSUM				; 2
+
+	dc.b	'J               '				;16
+
+	dc.l	$00000000				; 4
+H_ROMEnd
+	dc.l	ROMEND,$00FF0000,$00FFFFFF		;12
+
+	ifne	ExternalRAM
+	dc.b	'RA'
+	dc.b	EXTSIZE+EXTNOTCLEARED+EXTODDBYTES,EXTTYPE+EXTSRAM
+	dc.l	EXTRAMSTART,EXTRAMEND
+	endc
+	ifeq	ExternalRAM
+	dc.b	'            '
+	endc						;12
+
+	ifne	Modem
+	dc.b	'MO','SEGA','00','.','0'
+	endc
+	ifeq	Modem
+	dc.b	'          '
+	endc						;10
+
+	dc.b	'  '					; 2 (UNDOCUMENTED)
+
+	dc.b	'                                        '					;40
+
+	dc.b	'JUE             '				;16
+
+	ifne	*-$200
+	fail		;Header data isn't 256 bytes long!
+	endc
+
+
+ICD_BLK4
+	dc.b	$4A,$B9,$00,$A1,$00,$08,$66,$06,$4A,$79,$00,$A1,$00,$0C,$66,$7C
+	dc.b	$4B,$FA,$00,$7C,$4C,$9D,$00,$E0,$4C,$DD,$1F,$00,$10,$29,$EF,$01
+	dc.b	$02,$00,$00,$0F,$67,$08,$23,$7C,$53,$45,$47,$41,$2F,$00,$30,$14
+	dc.b	$70,$00,$2C,$40,$4E,$66,$72,$17,$1A,$1D,$38,$85,$DA,$47,$51,$C9
+	dc.b	$FF,$F8,$28,$9D,$36,$80,$32,$87,$34,$87,$01,$11,$66,$FC,$74,$25
+	dc.b	$10,$DD,$51,$CA,$FF,$FC,$34,$80,$32,$80,$34,$87,$2D,$00,$51,$CE
+	dc.b	$FF,$FC,$28,$9D,$28,$9D,$76,$1F,$26,$80,$51,$CB,$FF,$FC,$28,$9D
+	dc.b	$78,$13,$26,$80,$51,$CC,$FF,$FC,$7A,$03,$17,$5D,$00,$11,$51,$CD
+	dc.b	$FF,$FA,$34,$80,$4C,$D6,$7F,$FF,$46,$FC,$27,$00,$60,$6C,$80,$00
+	dc.b	$3F,$FF,$01,$00,$00,$A0,$00,$00,$00,$A1,$11,$00,$00,$A1,$12,$00
+	dc.b	$00,$C0,$00,$00,$00,$C0,$00,$04,$04,$14,$30,$3C,$07,$6C,$00,$00
+	dc.b	$00,$00,$FF,$00,$81,$37,$00,$01,$01,$00,$00,$FF,$FF,$00,$00,$80
+	dc.b	$40,$00,$00,$80,$AF,$01,$D9,$1F,$11,$27,$00,$21,$26,$00,$F9,$77
+	dc.b	$ED,$B0,$DD,$E1,$FD,$E1,$ED,$47,$ED,$4F,$D1,$E1,$F1,$08,$D9,$C1
+	dc.b	$D1,$E1,$F1,$F9,$F3,$ED,$56,$36,$E9,$E9,$81,$04,$8F,$02,$C0,$00
+	dc.b	$00,$00,$40,$00,$00,$10,$9F,$BF,$DF,$FF,$4A,$79,$00,$C0,$00,$04
+
+	ifne	*-ICD_BLK4-$100
+	fail		;ICD_BLK4 code isn't 256 bytes long!!
+	endc
+
+DoCheckSum
+	ifne	CheckCheckSum
+	move.l	H_ROMEnd,d0	;pick up final rom address
+	lea	$1FF(pc),a0	;point to lowest address to check
+	sub.l	a0,d0		;number of bytes to do
+	lsr.l	#1,d0		;words
+	move.l	d0,d1		;d0.w = words left over
+	swap	d1		;d1.w = blocks of $10000 words
+	subq.w	#1,d0		;adjust for dbra
+	moveq	#0,d0		;sum = 0
+cc_add
+	add.w	(a0)+,d2	;add word and point at next
+	dbra	d0,cc_add	;add words
+	subq.w	#1,d1		;decrement high count
+	bhi.s	cc_add		;do another block of 64K WORDS (this copes with <=64K WORDS)
+	cmp.w	H_CheckSum,d2	;check it is correct
+	beq.s	cc_ok
+cc_fail
+	moveq	#0,d0
+	bsr	SetCRAMWrite
+	move.w	#$00E,VDPData	;RED background
+cc_ok
+	endc
+
+ScrollA		set	48*1024	;8K boundary
+Window		set	52*1024	;4K boundary in 40CELL (2K in 32CELL)
+ScrollB		set	56*1024	;8K boundary
+SpriteAttr	set	60*1024	;1K boundary in 40CELL (1/2K in 32CELL)
+HScroll		set	61*1024	;1K boundary
+
+	lea	RAMBase,a0
+	move.w	#(RAMEnd-RAMBase)/4-1,d1
+	moveq	#0,d0
+sl_clr
+	move.l	d0,(a0)+
+	dbra	d1,sl_clr	;clear all of the work RAM (NB. will clear a stack!)
+
+	move.l	#No_Poll,Poll_Address
+	bsr	ResetHardware	;set up scrolls interrupts etc
+	move.w	#$2000,sr	;ALLOW INTERRUPTS (Poll_Address must be valid)
+	move.w	#Logo_Screen,NewScreen	;set first screen required
+	jmp	Main	;jump to main cartridge code block
+
+ResetHardware
+	bsr	BlackOut	;blank the palette
+	bsr	ClearVRAM	;clear vram (scrolls, hscroll, sprites, cells)
+	bsr	ClearVSRAM
+
+	move.b	#$00,SCtrl1	; set parallel mode and clear ints (p75)
+	move.b	#$00,SCtrl2	; set parallel mode and clear ints (p75)
+	move.b	#$00,SCtrl3	; set parallel mode and clear ints (p75)
+	move.b	#$40,Ctrl1
+	move.b	#$40,Ctrl2
+	move.b	#$40,Ctrl3
+
+	lea	InitialVDP(pc),a0 ;point to VDP initialization data
+	lea	VDPSlaves,a1	;point to VDP slave register in work RAM
+	moveq	#-$80,d0	;register increment
+	moveq	#24-1,d1	;count
+sl_slave
+	move.b	d0,(a1)+	;save register number
+	move.b	(a0)+,(a1)+	;save register data
+	addq.w	#1,d0	;increment register
+	dbra	d1,sl_slave	;slave all regs
+	bsr	SetVDPRegs	;set VDP registers (but not DMA VDP registers)
+	move.w	#64,CellMapCols	;set up cell map width
+	move.w	#32,CellMapRows	;set up cell map height
+	rts
+
+InitialVDP
+	dc.b	%00000100	; 0 no H interrupt, enable read HV counter
+	dc.b	%01100100	; 1 ENABLE display, ENABLE V interrupt, NO DMA, 28CELL HIGH(NTSC)
+	dc.b	ScrollA>>10	; 2 Pattern Table A
+	dc.b	Window>>10	; 3 Pattern Window
+	dc.b	ScrollB>>13	; 4 Pattern Table B
+	dc.b	SpriteAttr>>9	; 5 Sprite Attributes
+	dc.b	0	; 6 MUST BE 0
+	dc.b	%00000000	; 7 Background colour 0 in palette 0
+	dc.b	0	; 8 MUST BE 0
+	dc.b	0	; 9 MUST BE 0
+	dc.b	%11111111	;10 H interrupt divider
+	dc.b	%00000000	;11 NO Ext interrupt, FULL V scroll, FULL H scroll
+	dc.b	%10000001	;12 40CELL WIDE, NO shadow/hilight, NO interlace
+	dc.b	HScroll>>10	;13 H Scroll Table    @62K
+	dc.b	0	;14 MUST BE 0
+	dc.b	%00000010	;15 Autoinc = 2 (i.e. increment by WORD)
+	dc.b	%00000001	;16 Scroll size 32 HIGH by 64 WIDE occupies 32*64*2=4K bytes. NB CellMapCols
+	dc.b	%00000000	;17 Window H position = 0  \  => NO window
+	dc.b	%00000000	;18 Window V position = 0  /
+	dc.b	$ff	;19 \ DMA length count
+	dc.b	$ff	;20 /
+	dc.b	$00	;21 \
+	dc.b	$00	;22  > DMA source address
+	dc.b	$80	;23 /
+
+ShowLogo
+	moveq	#$20,d0		;VRAM address (skip first cell)
+	move.w	#(LogoCellEnd-LogoCellData),d1	;length
+	lea	LogoCellData(pc),a0	;data ptr
+	bsr	CopyToVRAM		;put the data in VRAM
+
+	moveq	#14,d0	;x character position in cell map for logo
+	moveq	#10,d1	;y character position in cell map for logo
+	moveq	#12,d2	;x character width of logo data
+	moveq	#4,d3	;y character height of logo data
+	moveq	#1,d4	;first cell number for grid (first cell skipped) - palette 0, NO PRI/HF/VF
+	move.w	#ScrollA,d5	;VRAM address of cell map (could just as well use PatternB)
+	bsr	VerticalGrid	;set up cell map grid sequentially from top to bottom across screen
+	
+	lea	LogoPalData(pc),a0	;palette data ptr
+	bsr	SetPalette		;construct palette
+	bsr	JumpIn		;show 'SEGA' logo immediately
+
+	move.w	#30,d0
+	bsr	WaitFrames	;wait 1/2 second (on NTSC)
+
+	lea	BigBuffer,a2
+	clr.b	(a2)+
+	moveq	#$26,d0
+	moveq	#9,d1
+logo_0
+	move.b	d0,(a2)+
+	subq.w	#2,d0
+	dbra	d1,logo_0	;set up palette indices table (11 bytes)
+	addq.w	#5,a2
+
+	lea	ColourCycle(pc),a3
+	moveq	#19,d7
+	moveq	#0,d1
+logo_1
+	moveq	#3,d0
+	bsr	WaitFrames
+	moveq	#4,d0
+	bsr	SetCRAMWrite
+	moveq	#-16,d0
+	moveq	#10,d6
+logo_2
+	move.b	0(a2,d0.w),d1
+	addq.b	#2,d1
+	cmp.b	#$28,d1
+	bne.s	logo_3
+	clr.b	d1
+logo_3
+	move.b	d1,(a2,d0.w)
+	addq.b	#1,d0
+	move.w	0(a3,d1.w),VDPData
+	dbra	d6,logo_2
+	dbra	d7,logo_1	;do palette tricks
+
+	move.w	#30,d0
+	jsr	WaitFrames	;wait 1/2 second (on NTSC)
+	rts
+
+LogoPalData
+	dc.w	0,13		;start at 0 for 13 colours
+	dc.w	$0000,$0EEE,$0EC0,$0EA0
+	dc.w	$0E80,$0E60,$0E40,$0E20
+	dc.w	$0E00,$0C00,$0A00,$0800
+	dc.w	$0600
+	dc.w	-1
+
+ColourCycle
+	dc.w	$0EC0,$0EA0,$0E80,$0E60
+	dc.w	$0E40,$0E20,$0E00,$0C00
+	dc.w	$0A00,$0800,$0600,$0800
+	dc.w	$0A00,$0C00,$0E00,$0E20
+	dc.w	$0E40,$0E60,$0E80,$0EA0
+
+LogoCellData
+	dc.b	$00,$00,$00,$00,$00,$00,$01,$11,$00,$01,$16,$67,$00,$15,$66,$66
+	dc.b	$01,$55,$66,$66,$01,$55,$56,$66,$15,$55,$56,$61,$14,$55,$55,$16
+	dc.b	$14,$55,$51,$66,$14,$45,$51,$56,$14,$45,$51,$56,$14,$44,$51,$55
+	dc.b	$14,$44,$51,$55,$14,$44,$41,$55,$14,$44,$41,$55,$13,$44,$44,$15
+	dc.b	$01,$44,$44,$51,$01,$34,$44,$45,$00,$14,$44,$45,$00,$13,$44,$44
+	dc.b	$00,$01,$11,$44,$11,$11,$11,$11,$13,$33,$34,$44,$13,$33,$33,$44
+	dc.b	$12,$33,$33,$44,$12,$23,$33,$34,$11,$11,$11,$11,$12,$22,$33,$33
+	dc.b	$12,$22,$33,$33,$12,$22,$23,$33,$12,$22,$23,$33,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$11,$77,$78,$88,$89,$77,$77,$88,$88
+	dc.b	$77,$77,$88,$88,$67,$77,$78,$88,$11,$11,$11,$11,$66,$77,$77,$88
+	dc.b	$66,$77,$77,$88,$66,$67,$77,$78,$66,$67,$77,$78,$66,$11,$11,$11
+	dc.b	$66,$66,$77,$77,$56,$66,$67,$77,$56,$66,$67,$77,$55,$66,$66,$77
+	dc.b	$11,$11,$11,$17,$55,$56,$66,$61,$55,$56,$66,$67,$55,$55,$66,$66
+	dc.b	$55,$55,$66,$66,$11,$11,$56,$66,$45,$55,$56,$66,$44,$55,$55,$66
+	dc.b	$44,$55,$55,$66,$44,$45,$55,$51,$11,$11,$11,$16,$44,$44,$55,$55
+	dc.b	$44,$44,$55,$55,$34,$44,$45,$55,$34,$44,$45,$55,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$00,$99,$9A,$A1,$00,$99,$99,$A1,$01
+	dc.b	$99,$99,$A1,$15,$89,$99,$91,$15,$11,$11,$11,$55,$88,$99,$91,$55
+	dc.b	$88,$99,$91,$45,$88,$89,$91,$45,$88,$89,$91,$44,$11,$11,$11,$44
+	dc.b	$11,$11,$11,$44,$78,$11,$11,$44,$78,$81,$11,$44,$77,$88,$11,$44
+	dc.b	$77,$88,$11,$34,$77,$78,$81,$34,$17,$78,$81,$33,$17,$77,$81,$33
+	dc.b	$17,$77,$81,$33,$17,$77,$71,$33,$17,$77,$71,$33,$16,$77,$71,$33
+	dc.b	$16,$77,$71,$23,$66,$67,$71,$23,$66,$67,$71,$22,$66,$66,$10,$12
+	dc.b	$66,$66,$10,$12,$56,$61,$00,$01,$51,$10,$00,$00,$10,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$11,$11,$11,$11,$66,$77,$77,$66,$66,$77,$77
+	dc.b	$56,$66,$67,$77,$56,$66,$67,$77,$55,$66,$61,$11,$55,$66,$16,$77
+	dc.b	$55,$51,$66,$67,$55,$51,$66,$67,$55,$51,$66,$66,$55,$51,$66,$61
+	dc.b	$45,$51,$56,$66,$45,$51,$56,$66,$44,$51,$55,$66,$44,$51,$55,$66
+	dc.b	$44,$41,$11,$11,$44,$41,$55,$56,$44,$41,$55,$55,$44,$41,$55,$55
+	dc.b	$34,$41,$45,$55,$34,$41,$45,$51,$33,$41,$44,$55,$33,$41,$44,$55
+	dc.b	$33,$31,$44,$45,$33,$34,$14,$45,$33,$33,$41,$11,$33,$33,$44,$44
+	dc.b	$23,$33,$34,$44,$23,$33,$34,$44,$11,$33,$33,$44,$00,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$11,$88,$88,$99,$99,$88,$88,$99,$99
+	dc.b	$78,$88,$89,$99,$78,$88,$89,$99,$11,$11,$11,$11,$77,$88,$88,$99
+	dc.b	$77,$78,$88,$89,$77,$78,$88,$89,$77,$77,$88,$88,$11,$11,$11,$11
+	dc.b	$67,$77,$78,$88,$67,$77,$78,$88,$66,$77,$77,$88,$66,$77,$77,$88
+	dc.b	$11,$11,$11,$11,$66,$67,$77,$78,$66,$66,$77,$77,$66,$66,$77,$77
+	dc.b	$56,$66,$67,$77,$11,$11,$11,$11,$55,$66,$66,$77,$55,$66,$66,$77
+	dc.b	$55,$56,$66,$67,$55,$56,$66,$67,$11,$11,$11,$11,$55,$55,$66,$66
+	dc.b	$45,$55,$56,$66,$45,$55,$56,$66,$44,$55,$55,$66,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$00,$00,$AA,$A1,$00,$11,$AA,$A1,$01,$66
+	dc.b	$9A,$A1,$15,$66,$9A,$A1,$15,$66,$11,$11,$55,$56,$99,$A1,$55,$56
+	dc.b	$99,$91,$55,$55,$99,$91,$45,$55,$99,$91,$45,$55,$11,$11,$44,$55
+	dc.b	$81,$11,$44,$55,$81,$11,$44,$45,$81,$11,$44,$45,$81,$11,$44,$44
+	dc.b	$11,$11,$44,$44,$81,$11,$34,$44,$81,$11,$34,$44,$81,$11,$33,$44
+	dc.b	$71,$11,$33,$44,$11,$11,$33,$34,$77,$81,$33,$34,$77,$81,$33,$33
+	dc.b	$77,$71,$23,$33,$77,$71,$23,$33,$11,$11,$12,$33,$77,$71,$12,$33
+	dc.b	$67,$71,$12,$23,$67,$71,$01,$23,$66,$71,$00,$11,$11,$11,$00,$00
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$11,$67,$77,$78,$88,$67,$77,$78,$88
+	dc.b	$66,$77,$77,$88,$66,$77,$77,$88,$66,$61,$11,$11,$61,$17,$77,$78
+	dc.b	$16,$66,$77,$77,$16,$66,$67,$77,$16,$66,$67,$77,$15,$66,$61,$11
+	dc.b	$15,$66,$61,$77,$15,$56,$61,$67,$15,$56,$61,$67,$15,$55,$61,$66
+	dc.b	$15,$55,$61,$11,$15,$55,$51,$66,$15,$55,$51,$66,$14,$55,$51,$66
+	dc.b	$14,$55,$51,$66,$14,$45,$51,$11,$14,$45,$55,$56,$14,$44,$55,$55
+	dc.b	$14,$44,$55,$55,$31,$14,$45,$55,$33,$41,$11,$11,$33,$44,$44,$55
+	dc.b	$33,$34,$44,$45,$33,$34,$44,$45,$33,$33,$44,$44,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$11,$89,$99,$9A,$AA,$89,$99,$9A,$AA
+	dc.b	$88,$99,$99,$AA,$88,$99,$99,$AA,$11,$11,$11,$11,$88,$89,$99,$9A
+	dc.b	$88,$88,$99,$99,$78,$88,$99,$99,$78,$88,$89,$99,$11,$11,$11,$11
+	dc.b	$77,$88,$88,$99,$77,$78,$88,$99,$77,$78,$88,$89,$77,$77,$88,$89
+	dc.b	$11,$11,$18,$88,$67,$77,$18,$88,$67,$77,$18,$88,$66,$77,$17,$88
+	dc.b	$66,$77,$17,$88,$66,$67,$17,$78,$66,$67,$17,$78,$66,$66,$17,$77
+	dc.b	$66,$66,$17,$77,$56,$66,$17,$77,$11,$11,$16,$77,$55,$66,$66,$77
+	dc.b	$55,$56,$66,$67,$55,$56,$66,$67,$55,$55,$66,$66,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$00,$00,$00,$A1,$00,$00,$00,$A1,$00,$00,$00
+	dc.b	$A1,$00,$00,$00,$A1,$00,$00,$00,$11,$00,$00,$00,$A1,$00,$00,$01
+	dc.b	$A1,$00,$00,$01,$A1,$00,$00,$01,$91,$00,$00,$15,$11,$00,$00,$15
+	dc.b	$91,$00,$00,$15,$91,$00,$01,$55,$91,$00,$01,$55,$91,$00,$01,$45
+	dc.b	$91,$00,$14,$45,$91,$00,$14,$44,$81,$00,$14,$44,$81,$01,$34,$44
+	dc.b	$81,$01,$34,$44,$81,$01,$33,$44,$81,$13,$33,$44,$81,$13,$33,$34
+	dc.b	$81,$23,$33,$34,$71,$22,$33,$33,$77,$22,$33,$33,$77,$22,$23,$31
+	dc.b	$77,$22,$23,$31,$77,$22,$22,$31,$77,$22,$22,$31,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$00,$00,$01,$11,$00,$01,$18,$88,$00,$17,$78,$88
+	dc.b	$01,$77,$78,$88,$16,$77,$77,$88,$16,$77,$77,$88,$66,$67,$77,$11
+	dc.b	$66,$67,$77,$11,$66,$66,$71,$77,$66,$66,$71,$77,$56,$66,$61,$77
+	dc.b	$56,$66,$17,$77,$55,$66,$16,$77,$55,$66,$16,$77,$55,$51,$66,$67
+	dc.b	$55,$51,$66,$67,$55,$51,$66,$66,$55,$15,$66,$66,$45,$15,$56,$66
+	dc.b	$45,$15,$56,$11,$41,$55,$55,$11,$41,$55,$55,$66,$41,$45,$55,$56
+	dc.b	$14,$45,$55,$56,$14,$44,$55,$55,$14,$44,$11,$11,$34,$44,$15,$55
+	dc.b	$34,$41,$15,$55,$33,$41,$14,$55,$33,$11,$14,$55,$11,$11,$11,$11
+	dc.b	$00,$00,$11,$11,$10,$00,$00,$10,$91,$10,$00,$10,$89,$91,$00,$10
+	dc.b	$89,$99,$10,$10,$88,$99,$91,$00,$88,$99,$91,$00,$88,$89,$99,$10
+	dc.b	$88,$89,$99,$10,$18,$88,$99,$10,$18,$88,$99,$91,$18,$88,$89,$91
+	dc.b	$71,$88,$89,$91,$71,$88,$88,$99,$71,$88,$88,$99,$77,$18,$88,$89
+	dc.b	$77,$18,$88,$89,$77,$17,$88,$88,$77,$71,$88,$88,$67,$71,$78,$88
+	dc.b	$67,$71,$78,$88,$66,$77,$17,$88,$66,$77,$17,$88,$66,$67,$17,$78
+	dc.b	$66,$67,$71,$78,$66,$66,$71,$77,$11,$11,$11,$77,$56,$66,$67,$77
+	dc.b	$56,$66,$67,$77,$55,$66,$66,$77,$55,$66,$66,$77,$11,$11,$11,$11
+	dc.b	$10,$10,$00,$01,$00,$11,$00,$11,$00,$10,$11,$01,$00,$10,$00,$01
+	dc.b	$00,$10,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$10,$00,$00,$00,$10,$00,$00,$00,$10,$00,$00,$00
+	dc.b	$91,$00,$00,$00,$91,$00,$00,$00,$91,$00,$00,$00,$89,$10,$00,$00
+	dc.b	$89,$10,$00,$00,$88,$10,$00,$00,$88,$91,$00,$00,$88,$81,$00,$00
+	dc.b	$88,$81,$00,$00,$88,$88,$10,$00,$88,$88,$10,$00,$78,$88,$10,$00
+	dc.b	$78,$88,$81,$00,$77,$88,$81,$00,$77,$88,$81,$00,$11,$11,$11,$00
+LogoCellEnd	equ	*
+
+Z80NoROM	equ	Z80Base+4	;flag for disabling Z80 ROM accesses
+
+SetVDPRegs
+	moveq	#19-1,d0	;registers (DO NOT SET UP DMA LENGTH AND SOURCE ADDRESS)
+	lea	VDPSlaves,a0	;point to register slaves
+	lea	VDPControl,a1	;point to VDP Control Port
+sr_lp
+	move.w	(a0)+,(a1)	;set register
+	dbra	d0,sr_lp	;do all registers sequentially
+	rts
+
+SetVDPDMA
+	moveq	#5-1,d0	;regs 19..23
+	lea	DMASlaves,a0	;point to register slaves
+	lea	VDPControl,a1	;point to VDP Control Port
+sd_lp
+	move.w	(a0)+,(a1)	;set register
+	dbra	d0,sd_lp	;do all registers sequentially
+	rts
+
+ScanJoy1
+	lea	Data1,a0	;point to hardware
+	Z80Di			;grab Z80
+	move.b	#$00,(a0)	;TH=0
+	nop
+	nop			;wait
+	move.b	(a0),d0		;get bits 6..7 (in 4..5)
+	lsl.w	#2,d0		;move to 6..7
+	move.b	#$40,(a0)	;TH=1
+	and.w	#$C0,d0		;mask 6..7
+	move.b	(a0),d1		;get 0..5
+	Z80Ei			;let Z80 continue
+	and.w	#$3f,d1		;mask 0..5
+	or.w	d1,d0		;combine (top byte of word=0)
+
+	lea	KeyTab1,a0	;point to button status table
+	moveq	#8-1,d1		;8 buttons
+sj_key
+	lsr.b	#1,d0		;check bit
+	bcs.s	sj_up		;skip if up
+	tst.b	(a0)		;test held status
+	bne.s	sj_next		;skip if already down
+	st	KeyHit		;flag hit occured (global)
+	move.w	#$101,(a0)	;flag hit and held
+	bra.s	sj_next		;next bit
+sj_up
+	clr.b	(a0)		;not held (leave hit status)
+sj_next
+	addq.w	#2,a0		;next ststus entry
+	dbra	d1,sj_key	;do all bits
+	rts
+
+ClearKeys
+	sf	KeyHit		;flag no key hit
+	lea	KeyTab1+1,a0	;point at hit entries
+	moveq	#8-1,d0		;8 of them
+ck_lp
+	sf	(a0)+		;clear hit flag
+	addq.w	#1,a0		;index next hit ststus
+	dbra	d0,ck_lp	;do all
+	rts
+
+WaitFrame
+	sf	FlyBackFlag	;clear flag
+wf_lp
+	tst.b	FlyBackFlag	;has interrupt set it yet
+	beq.s	wf_lp		;wait until it has
+	rts
+
+WaitFrames
+	subq.w	#1,d0
+wfs_lp
+	bsr	WaitFrame
+	dbra	d0,wfs_lp
+	rts
+
+SetVRAMWrite
+	move.l	d0,-(sp)
+	or.w	#CD0,d0
+	swap	d0
+	move.w	2(sp),d0
+	rol.w	#2,d0
+	and.l	#($FFFF-CD1)<<16+%11,d0
+	move.l	d0,VDPControl
+	move.l	(sp)+,d0
+	rts
+
+SetVRAMRead
+	move.l	d0,-(sp)
+	swap	d0
+	move.w	2(sp),d0
+	rol.w	#2,d0
+	and.l	#($FFFF-CD1-CD0)<<16+%11,d0
+	move.l	d0,VDPControl
+	move.l	(sp)+,d0
+	rts
+
+SetCRAMWrite
+	and.w	#$7F,d0
+	or.w	#CD1+CD0,d0
+	move.w	d0,VDPControl
+	move.w	#0,VDPControl
+	and.w	#$7F,d0
+	rts
+
+SetCRAMRead
+	and.w	#$7F,d0
+	move.w	d0,VDPControl
+	move.w	#CD3,VDPControl
+	rts
+
+SetVSRAMWrite
+	and.w	#$3f,d0
+	or.w	#CD0,d0
+	move.w	d0,VDPControl
+	move.w	#CD2,VDPControl
+	and.w	#$3f,d0
+	rts
+
+SetVSRAMRead
+	and.w	#$3f,d0
+	move.w	d0,VDPControl
+	move.w	#CD2,VDPControl
+	rts
+
+BlackOut
+	moveq	#0,d0		;CRAM address 0
+	bsr	SetCRAMWrite	;set write to CRAM
+	moveq	#64*2/4-1,d1	;long words less 1
+bo_lp
+	move.l	d0,VDPData	;clear 2 entries
+	dbra	d1,bo_lp	;until all clear
+	rts
+
+SetPalette
+	bra.s	sp_get		;jump to start
+sp_set
+	lea	PalBuffer,a1	;point at slave buffer
+	add.w	d0,d0		;2*colour
+	add.w	d0,a1		;index correct slave
+	move.w	(a0)+,d0	;get count of values
+	subq.w	#1,d0		;for dbra
+sp_lp
+	move.w	(a0)+,(a1)+	;copy value to slave buffer
+	dbra	d0,sp_lp	;do values
+sp_get
+	move.w	(a0)+,d0	;get flag/address
+	bpl.s	sp_set		;adress if not -ve
+	rts			;stop
+
+JumpIn
+	moveq	#0,d0		;first colour
+	bsr	SetCRAMWrite	;set write to colour RAM
+	lea	PalBuffer,a0	;point at slaves
+	moveq	#64-1,d0	;number of colours (4*16 colour palettes)
+ji_lp
+	move.w	(a0)+,VDPData	;move data to CRAM
+	dbra	d0,ji_lp	;move all
+	rts
+
+FadeIn
+	lea	PalBuffer,a0	;point to slaves
+FadeAnyIn
+	move.w	d0,d7		;maximum frame
+	moveq	#1,d6		;first frame
+	moveq	#1,d5		;direction
+      	bra.s	f_join		;do it
+
+FadeOut
+	lea	PalBuffer,a0	;point to slaves
+	move.w	d0,d7		;maximum frame
+	move.w	d0,d6
+	subq.w	#1,d6		;first frame
+	moveq	#-1,d5		;direction
+	moveq	#0,d0		;set address of palettes (in CRAM)
+	bsr	SetCRAMRead	;set read of palette
+	moveq	#64-1,d0	;words
+f_get
+	move.w	VDPData,(a0)+	;read palette
+	dbra	d0,f_get	;read all
+	lea	-128(a0),a0	;point to buffer
+
+f_join
+	move.w	d7,d4
+	subq.w	#1,d4		;frames to do (adjusted for dbra)
+f_fade
+	bsr	WaitFrame	;synchronize to video
+	moveq	#0,d0		;address to write (in CRAM)
+	bsr	SetCRAMWrite	;set write palette
+	moveq	#64-1,d1	;every colour
+f_set
+	move.b	(a0)+,d0	;1st byte of data
+	bsr	f_nib		;do nybble
+	move.b	d0,-(sp)
+	move.w	(sp)+,d0	;byte swap
+	move.b	(a0)+,d0	;2nd byte of data
+	ror.b	#4,d0		;top nibble
+	bsr	f_nib		;do nybble
+	ror.b	#4,d0		;bottom nibble
+	bsr	f_nib		;do nybble
+	move.w	d0,VDPData	;set colour
+	dbra	d1,f_set	;do all colours
+	lea	-128(a0),a0	;point to buffer again
+	add.w	d5,d6		;next frame
+	dbra	d4,f_fade	;fade
+	rts
+f_nib
+	move.w	d0,d3
+	and.w	#$f,d0		;get nibble
+	eor.w	d0,d3		;clear nibble
+	mulu	d6,d0
+	divu	d7,d0		;scale for current frame
+	and.w	#$e,d0		;discard bottom bit
+	or.w	d3,d0		;include other nibbles
+	rts
+
+WaitForDMA
+	move.w	VDPStatus,d0	;get status
+	and.w	#DMA,d0		;DMA finished?
+	bne.s	WaitForDMA	;loop if not
+	rts
+
+ClearVRAM
+	or.b	#M1,VDP_ModeSet2	;enable DMA
+	move.b	VDP_AutoInc,d7		;get current autoinc
+	move.b	#1,VDP_AutoInc		;VRAM is byte wide
+	st	VDP_DMALenLo		;\ length = 65535 (byte aligned word)
+	st	VDP_DMALenHi		;/
+	move.b	#DMD1,VDP_DMASrcHi	;VRAM fill (no source)
+	bsr	SetVDPRegs		;copy DMA and AutoInc slaves to VDP
+	bsr	SetVDPDMA		;copy DMA slaves to VDP
+	move.l	#$40000080,VDPControl	;address 0
+	move.w	#0,VDPData		;clear value (lower byte). NB RAM READ NOT REQUIRED HERE!
+	and.b	#$FF-M1,VDP_ModeSet2	;flag slave as DISABLE DMA
+	move.b	d7,VDP_AutoInc		;set slave autoinc back to previous
+	bsr	WaitForDMA		;wait until DMA finished
+	bra	SetVDPRegs		;set up the VDP (AutoInc and DISABLE DMA)
+ 
+ClearVSRAM
+	moveq	#0,d0		;start address
+	bsr	SetVSRAMWrite	;set VSRAM write
+	moveq	#80/4-1,d1	;long words
+	lea	VDPData,a0	;point to VDP data port
+cv_lp
+	move.l	d0,(a0)		;clear scrolls
+	dbra	d1,cv_lp	;clear all
+	rts
+	
+ClearHSRAM
+	move.w	#HScroll,d0	;address of scroll table (in VRAM)
+	bsr	SetVRAMWrite	;set write to VRAM
+	moveq	#0,d0		;clear d0
+	move.w	#1024/4-1,d1	;long words
+	lea	VDPData,a0	;point to VDP data port
+ch_lp	move.l	d0,(a0)		;clear scrolls
+	dbra	d1,ch_lp	;clear all
+	rts
+
+         
+CopyToVRAM
+	move.w	sr,-(sp)	;save status
+	DI			;disable interrupts
+	Z80Di			;grab Z80
+	st	Z80NoROM	;flag ROM accesses NOT permitted
+	Z80Ei			;allow Z80 to continue
+	move.w	(sp)+,sr	;reset old interrupt status
+	or.b	#M1,VDP_ModeSet2 ;enable DMA
+	move.b	VDP_AutoInc,d7	;get current autoinc
+	move.b	#2,VDP_AutoInc	;VRAM is byte wide
+	lsr.w	#1,d1		;convert length to words
+	move.b	d1,VDP_DMALenLo	   ;\
+	move.w	d1,-(sp)	   ; > length (byte aligned word in VDP slaves)
+	move.b	(sp)+,VDP_DMALenHi ;/
+	move.l	a0,d1		;get address
+	lsr.l	#1,d1		;convert to word address
+	move.b	d1,VDP_DMASrcLo	    ;\
+	move.w	d1,-(sp)	    ; \
+	move.b	(sp)+,VDP_DMASrcMid ;  \ source address (byte aligned in VDP slaves)
+	swap	d1		    ;  /
+	and.b	#$7f,d1		    ; /  clear DMD1
+	move.b	d1,VDP_DMASrcHi	    ;/
+	move.w	d0,DMATemp	;save VRAM address
+	bsr	SetVDPRegs	;copy DMA and AutoInc slaves to VDP
+	bsr	SetVDPDMA	;copy DMA slaves to VDP
+	move.w	DMATemp,d0	;get VRAM address
+	and.w	#$FFFF-CD1,d0	;clear CD1
+	or.w	#CD0,d0		;set CD0
+	lea	VDPControl,a0	;control port pointer
+	move.w	d0,(a0)		;set first word of address
+	move.w	DMATemp,d0	;get VRAM address again
+	move.l	DMATrigger(pc),DMATemp	;move trigger code to work RAM
+	rol.w	#2,d0		;move bits 14/15 to bits 0/1
+	and.w	#%11,d0		;mask them (clear CD2 and other bits)
+	or.w	#$80,d0		;set bit 7
+	jsr	DMATemp		;call the trigger (set second word of address)
+	and.b	#$FF-M1,VDP_ModeSet2 ;flag slave as DISABLE DMA
+	move.b	d7,VDP_AutoInc	;set slave autoinc back to previous
+	bsr	SetVDPRegs	;set up the VDP (AutoInc and M1). No need to WAIT for DMA!
+	move.w	sr,-(sp)	;save status
+	DI			;disable interrupts
+	Z80Di			;grab Z80
+	sf	Z80NoROM	;flag ROM accesses permitted
+	Z80Ei			;allow Z80 to continue
+	move.w	(sp)+,sr	;reset old interrupt status
+	rts
+DMATrigger
+	move.w	d0,(a0)		;\ this code is moved to and executed in work RAM
+	rts			;/
+
+CopyToVRAM2
+	bsr	SetVRAMWrite	;set VRAM address for write
+	lsr.w	#1,d1		;words
+	subq.w	#1,d1		;adjust for dbra
+ctv_load
+	move.w	(a0)+,VDPData	;load word
+	dbra	d1,ctv_load	;until done
+	rts
+
+VerticalGrid
+	add.w	d0,d0		;scale x position to words
+	move.w	CellMapCols,d7	;get cell map width
+	add.w	d7,d7		;convert to bytes
+	mulu	d7,d1		;scale y position to lines
+	add.w	d1,d0		;add line to x offset
+	add.w	d5,d0		;create cell map address of top left cell
+	move.w	d4,d1		;copy first cell number
+	move.w	d3,d6		;copy height
+	subq.w	#1,d6		;adjust height for dbra
+	subq.w	#1,d2		;adjust width for dbra
+vg_rows				
+	move.w	d2,d5		;get width count
+	bsr	SetVRAMWrite	;set up left most address (cannot use a macro here!)
+	add.w	d7,d0		;update address for next line down cell map
+vg_cols
+	move.w	d1,VDPData	;set cell map
+	add.w	d3,d1		;next horizontal character number
+	dbra	d5,vg_cols	;do a row
+	addq.w	#1,d4		;make next sequential character below left most character
+	move.w	d4,d1		;get it
+	dbra	d6,vg_rows	;do all rows
+	rts			;simple really!	
+
+LoadCellMap
+	add.w	d0,d0		;scale x position to words
+	move.w	CellMapCols,d7	;get cell map width
+	add.w	d7,d7		;convert to bytes
+	mulu	d7,d1		;scale y position to lines
+	add.w	d1,d0		;add line to x offset
+	add.w	d4,d0		;create cell map address of top left cell
+	subq.w	#1,d2		;adjust width for dbra
+	subq.w	#1,d3		;adjust height for dbra
+	lea	VDPData,a1	;point to VDP data port
+lc_rows
+	move.w	d2,d5		;get width
+	bsr	SetVRAMWrite	;set address
+	add.w	d7,d0		;get next line address
+lc_cols
+	move.w	(a0)+,(a1)	;put data in cell map
+	dbra	d5,lc_cols	;do row
+	dbra	d3,lc_rows	;do all rows
+	rts
+
+LoadChars
+	lsl.w	#5,d0		;make VRAM address
+	bsr	SetVRAMWrite	;set write to VRAM
+	lsl.w	#3,d1		;bytes to expand
+	subq.w	#1,d1		;adjust for dbra
+	lea	VDPData,a1	;point at data port
+	and.w	#$f,d2
+	and.w	#$f,d3		;force colours into range
+	mulu	#%1000100010001,d2
+	mulu	#%1000100010001,d3 ;duplicate nybble into all 4 nybbles
+lc_bytes
+	move.b	(a0),d0		;get byte
+	and.w	#$f0,d0		;mask top nybble
+	lsr.w	#3,d0		;make index
+	bsr	lc_donybble	;expand nybble
+	move.b	(a0)+,d0	;reget byte (and move data ptr)
+	and.w	#$0f,d0		;mask bottom nybble
+	add.w	d0,d0		;make mask
+	bsr	lc_donybble	;expand nybble
+	dbra	d1,lc_bytes	;expand all
+	rts
+lc_donybble
+	move.w	lc_nybble4(pc,d0.w),d4 ;expand a nybble
+	move.w	d4,d0		;duplicate
+	not.w	d0		;make background mask
+	and.w	d2,d4		;put in colour
+	and.w	d3,d0		;put in other colour
+	or.w	d4,d0		;combine
+	move.w	d0,(a1)		;write expanded word to VRAM
+	rts
+lc_nybble4
+	dc.w	$0000,$000F,$00F0,$00FF
+	dc.w	$0F00,$0F0F,$0FF0,$0FFF
+	dc.w	$F000,$F00F,$F0F0,$F0FF
+	dc.w	$FF00,$FF0F,$FFF0,$FFFF
+	
+
+	
+ClearCellMap
+	moveq	#0,d1		;set value to 0
+SetCellMap
+	bsr	SetVRAMWrite	;set address
+	move.w	CellMapCols,d0	;get width
+	mulu	CellMapRows,d0	;number of words in cell map
+	subq.w	#1,d0		;dbra
+	lea	VDPData,a0	;point to VDP data port
+scm_clr
+	move.w	d1,(a0)		;set cells
+	dbra	d0,scm_clr	;set all
+	rts
+
+SetBlockAttr
+	add.w	d0,d0		;scale x position to words
+	move.w	CellMapCols,d7	;get cell map width
+	add.w	d7,d7		;convert to bytes
+	mulu	d7,d1		;scale y position to lines
+	add.w	d1,d0		;add line to x offset
+	add.w	d5,d0		;create cell map address of top left cell
+	subq.w	#1,d2		;dbra
+	subq.w	#1,d3		;dbra
+	lea	VDPData,a1	;point to VDP data port
+sba_next
+	bsr	SetVRAMRead	;set read
+	lea	BigBuffer,a0	;buffer pointer
+	move.w	d2,d1		;width count
+sba_get
+	move.w	(a1),d5		;get data
+	and.w	#$7ff,d5	;keep cell
+	or.w	d4,d5		;add attribute
+	move.w	d5,(a0)+	;save in buffer
+	dbra	d1,sba_get	;get line
+	bsr	SetVRAMWrite	;set write
+	lea	BigBuffer,a0	;buffer pointer
+	move.w	d2,d1		;width count
+sba_set
+	move.w	(a0)+,(a1)	;rewrite cell and new attribute
+	dbra	d1,sba_set	;set line
+	add.w	d7,d0		;down a line
+	dbra	d3,sba_next	;do all lines
+	rts
+	
+SetCellBlock
+	add.w	d0,d0		;scale x position to words
+	move.w	CellMapCols,d7	;get cell map width
+	add.w	d7,d7		;convert to bytes
+	mulu	d7,d1		;scale y position to lines
+	add.w	d1,d0		;add line to x offset
+	add.w	d5,d0		;create cell map address of top left cell
+	subq.w	#1,d2		;dbra
+	subq.w	#1,d3		;dbra
+scb_next
+	bsr	SetVRAMWrite	;set write
+	move.w	d2,d1		;width count
+scb_set
+	move.w	d4,VDPData	;write cell and attribute
+	dbra	d1,scb_set	;do line
+	add.w	d7,d0		;down a line
+	dbra	d3,scb_next	;do all lines
+	rts
+
+LoadZ80	move.w	sr,-(sp)	;save interrupt status
+	DI			;disable intterupts
+	Z80di			;grab Z80
+
+	lea	Z80Base,a1	;point at Z80 memory
+si_lp0
+	move.b	(a0)+,(a1)+	;only possible to byte access
+	dbra	d0,si_lp0	;load Z80 program
+
+	Z80eiGO			;start Z80 and reset it (execute from address 0)
+	move.w	(sp)+,sr	;reset old interrupt status
+	rts
+
+
+	ifne	DebugMode
+SCSITrap	equ	$208008
+SCSIExcept	equ	$20800C
+	endc
+	ifeq	DebugMode
+SCSITrap	equ	Ex_Infinite
+SCSIExcept	equ	Ex_Infinite
+	endc
+
+EX_BusError		jmp	$02<<24+SCSIExcept
+EX_AddressError		jmp	$03<<24+SCSIExcept
+EX_IllegalInstruction	jmp	$04<<24+SCSIExcept
+EX_DivideBy0		jmp	$05<<24+SCSIExcept
+EX_CHK			jmp	$06<<24+SCSIExcept
+EX_TrapV		jmp	$07<<24+SCSIExcept
+EX_Priviledge		jmp	$08<<24+SCSIExcept
+EX_Trace		jmp	$09<<24+SCSIExcept
+
+EX_Trap0		jmp	$20<<24+SCSITrap
+EX_Trap1		jmp	$21<<24+SCSIExcept
+EX_Trap2		jmp	$22<<24+SCSIExcept
+EX_Trap3		jmp	$23<<24+SCSIExcept
+EX_Trap4		jmp	$24<<24+SCSIExcept
+EX_Trap5		jmp	$25<<24+SCSIExcept
+EX_Trap6		jmp	$26<<24+SCSIExcept
+EX_Trap7		jmp	$27<<24+SCSIExcept
+EX_Trap8		jmp	$28<<24+SCSIExcept
+EX_Trap9		jmp	$29<<24+SCSIExcept
+EX_TrapA		jmp	$2A<<24+SCSIExcept
+EX_TrapB		jmp	$2B<<24+SCSIExcept
+EX_TrapC		jmp	$2C<<24+SCSIExcept
+EX_TrapD		jmp	$2D<<24+SCSIExcept
+EX_TrapE		jmp	$2E<<24+SCSIExcept
+EX_TrapF		jmp	$2F<<24+SCSIExcept
+
+EX_LineA
+EX_LineF
+EX_Motorola
+EX_Spurious
+EX_Level1
+EX_Level3
+EX_Level5
+EX_Level7
+
+EX_Infinite	bra	EX_Infinite		;just HANG - it should not have occured anyway!
+
+
+EX_Level2	rte
+
+EX_Level4	rte
+
+EX_Level6
+	ifne	DebugMode
+	trap	#0		;poll the development system
+	endc
+
+	movem.l	d0-d1/a0-a1,-(a7) ;save all registers
+	st	FlyBackFlag	;flag VBLANK interrupt happened
+	subq.w	#1,GPTimer	;general purpose timer
+	bsr	ScanJoy1	;scan joystick
+	move.l	Poll_Address,a0	;get poll routine address
+	jsr	(a0)		;poll routine
+	movem.l	(a7)+,d0-d1/a0-a1 ;get old registers
+	rte			;finished interrupt
+
+
+Logo_Init
+	jmp	ResetHardware
+
+Logo_Call
+	move.w	#Menu_Screen,NewScreen
+	jmp	ShowLogo
+No_Init
+No_Call
+No_Poll
+No_Tidy	rts
+
+s_init	equ	$0	;rs.l	1
+s_call	equ	$4	;rs.l	1
+s_poll	equ	$8	;rs.l	1
+s_tidy	equ	$C	;rs.l	1
+
+Main
+	jsr	User_Init	;do once off user initialization code
+
+MainLoop
+	move.w	NewScreen,d0	;get new screen number
+	lsl.w	#4,d0		;index screen data table
+	move.w	d0,CurScreen	;save index
+	st	NewScreen	;flag dealt with new screen (make it -ve)
+
+	lea	ScreenData(pc),a0
+	move.l	s_init(a0,d0.w),a1 ;get initialization address of screen
+	jsr	(a1)		;initialize
+
+	move.w	CurScreen,d0
+	lea	ScreenData(pc),a0
+	move.l	s_poll(a0,d0.w),Poll_Address ;set up the poll address for this screen
+
+	jsr	ClearKeys	;clear the key hit table
+
+gotscreen
+	move.w	CurScreen,d0
+	lea	ScreenData(pc),a0
+	move.l	s_call(a0,d0.w),a1 ;get the main call address
+	jsr	(a1)		;call the routine
+	tst.b	NewScreen	;see if a new screen has been requested
+	bmi.s	gotscreen	;no, so go round doing call routine
+
+	move.l	#No_Poll,Poll_Address ;yes, so kill poll address
+	move.w	CurScreen,d0
+	lea	ScreenData(pc),a0
+	move.l	s_tidy(a0,d0.w),a1 ;get tidy routine for current screen
+	jsr	(a1)	;tidy up
+
+	bra.s	MainLoop	;set up for new screen
+
+
+ScreenData
+Logo_Screen	equ	0
+	dc.l	Logo_Init,Logo_Call,No_Poll,No_Tidy
+Menu_Screen	equ	1
+	dc.l	Menu_Init,Menu_Call,Menu_Poll,No_Tidy
+Sprite_Screen	equ	2
+	dc.l	Sprite_Init,Sprite_Call,Sprite_Poll,No_Tidy
+Scroll_Screen	equ	3
+	dc.l	Scroll_Init,Scroll_Call,Scroll_Poll,No_Tidy
+Window_Screen	equ	4
+	dc.l	Window_Init,Window_Call,Window_Poll,No_Tidy
+Sound_Screen	equ	5
+	dc.l	Sound_Init,Sound_Call,Sound_Poll,Sound_Tidy
+Z80Note		equ	Z80Base+5	;semitone (0..11)
+Z80Octave	equ	Z80Base+6	;octave (0..7)
+Z80Play		equ	Z80Base+7	;start flag
+Z80Stop		equ	Z80Base+8	;stop flag
+
+HScrollSlave	equ	BigBuffer+1024
+VScrollSlave	equ	HScrollSlave+1024
+
+SPACE		equ	32
+
+User_Init
+	move.l	#12379,rand	;seed random number generator
+	move.l	#$456,rand+4
+	move.w	#0,selected	;set first menu selection
+	rts
+
+alignodd	macro	;to align PC to odd boundary
+	ifeq 	*&1
+	dc.b	1
+	endc
+	endm
+
+c_stop	macro		;to tell console to stop
+	alignodd
+	dc.b	0
+	endm
+
+c_scr	macro		;to set console active screen
+	alignodd
+	dc.b	2
+	dc.w	\1
+	endm
+
+c_pos	macro		;to set console x and y positions
+	dc.b	3,\1,\2
+	endm
+
+c_attr	macro		;to set console character attribute
+	alignodd
+	dc.b	4
+	dc.w	\1
+	endm
+
+c_call	macro		;to call code from console
+	alignodd
+	dc.b	5
+	dc.l	\1
+	endm
+
+console
+	st	VDPLock		;do not allow interrupts to use VDP
+	move.l	#console,-(sp)	;stack return address
+	moveq	#0,d0		;clear d0
+	move.b	(a0)+,d0	;get command (or character code) byte
+	cmp.b	#SPACE,d0	;compare with space character
+	bhs.s	co_printchar	;print a character if space or more
+	add.w	d0,d0		;*2
+	add.w	d0,d0		;*4 (long word index)
+	move.l	co_commands(pc,d0.w),-(sp)	;stack command address
+	rts			;EXECUTE command
+co_printchar
+	add.w	chrattr,d0	;add chaarcter attribute
+	move.w	d0,VDPData	;put cell attribute in cell map (VRAM)
+	rts
+co_commands
+	dc.l	co_stop,co_skip,co_screen,co_posxy
+	dc.l	co_attr,co_call
+co_stop
+	addq.w	#4,sp		;strip return address (CONSOLE)
+	sf	VDPLock		;flag interrupt routine can use VDP
+	rts			;return from console
+co_screen
+	move.w	(a0)+,scrbase	;set screen base address
+co_skip
+	rts
+co_posxy
+	moveq	#0,d0		;clear d0
+	moveq	#0,d1		;clear d1
+	move.b	(a0)+,d0	;get x (byte)
+	move.b	(a0)+,d1	;get y (byte)
+	mulu	CellMapCols,d1	;scale by width of scroll
+	add.w	d1,d0		;add x to form index
+	add.w	d0,d0		;indexing words (cell map)
+	add.w	scrbase,d0	;add base of screen
+	jmp	SetVRAMWrite	;set the screen address up in VDP
+co_attr
+	move.w	(a0)+,d0	;get character attribute
+	sub.w	#SPACE,d0	;subtract first character code in character set
+	move.w	d0,chrattr	;save character attribute
+	rts
+co_call
+	move.l	(a0)+,a1	;get code address
+	move.l	a0,-(sp)	;save console PC
+	jsr	(a1)		;call code
+	move.l	(sp)+,a0	;get console PC
+	rts			;back to console
+
+random
+	movem.l	d1-d2,-(sp)	;standard feedback shift algorithm
+	movem.l	rand,d0-d1
+	add.w	d0,d0
+	move.w	d0,d2
+	addx.w	d1,d0
+	move.w	d2,d1
+	swap	d0
+	swap	d1
+	move.w	d0,d2
+	addx.w	d1,d0
+	move.w	d2,d1
+	swap	d0
+	swap	d1
+	movem.l	d0-d1,rand
+	movem.l	(sp)+,d1-d2
+	rts	
+
+ClearScrolls
+	jsr	ClearVSRAM	;clear virtucal scroll RAM (VSRAM)
+	jmp	ClearHSRAM	;clear horizontal scroll RAM (VRAM)
+
+ClearCellMaps
+	move.w	#ScrollA,d0	;address of cell map A (scroll)
+	jsr	ClearCellMap	;clear map
+	move.w	#ScrollB,d0	;address of cell map B (scroll)
+	jmp	ClearCellMap	;clear map
+
+startkey
+	testhit	KCodeStart	;start pressed? (at some time)
+	beq.s	sk_done		;no so skip
+	move.w	#Logo_Screen,NewScreen	;want logo again
+sk_done	rts
+
+spritechars
+	moveq	#0,d1
+	move.b	(a0)+,d1
+	beq.s	sc_done
+	move.w	d0,-(sp)	;load cell address
+	move.l	a0,-(sp)
+	sub.w	#SPACE,d1
+	lsl.w	#3,d1	;8 bytes per character
+	lea	AsciiChars,a0
+	add.w	d1,a0	;character pointer
+	moveq	#1,d1	;characters
+	moveq	#15,d2	;foreground colour
+	moveq	#8,d3	;background colour
+	jsr	LoadChars	;load characters
+	move.l	(sp)+,a0
+	move.w	(sp)+,d0
+	addq.w	#1,d0
+	bra.s	spritechars
+sc_done	
+	move.w	#SpriteAttr,d0
+	moveq	#endtextsprs-textsprites,d1
+	lea	textsprites(pc),a0
+	jmp	CopyToVRAM
+
+textsprites
+	dc.w	$80+5*8,%1100<<8+1,130+Pal0+Pri,$80+10*8
+	dc.w	$80+5*8,%1100<<8+2,134+Pal0+Pri,$80+14*8
+	dc.w	$80+5*8,%1100<<8+3,138+Pal0+Pri,$80+18*8
+	dc.w	$80+5*8,%1100<<8+4,142+Pal0+Pri,$80+22*8
+	dc.w	$80+5*8,%1100<<8+5,146+Pal0+Pri,$80+26*8
+
+	dc.w	$80+22*8,%1100<<8+6,150+Pal1+Pri,$80+4*8
+	dc.w	$80+22*8,%1100<<8+7,154+Pal1+Pri,$80+8*8
+	dc.w	$80+22*8,%1100<<8+8,158+Pal1+Pri,$80+12*8
+	dc.w	$80+22*8,%1100<<8+9,162+Pal1+Pri,$80+16*8
+	dc.w	$80+22*8,%1100<<8+10,166+Pal1+Pri,$80+20*8
+	dc.w	$80+22*8,%1100<<8+11,170+Pal1+Pri,$80+24*8
+	dc.w	$80+22*8,%1100<<8+12,174+Pal1+Pri,$80+28*8
+	dc.w	$80+22*8,%1000<<8+0,178+Pal1+Pri,$80+32*8
+endtextsprs
+
+Menu_Init
+	moveq	#16,d0		;16 frames
+	jsr	FadeOut		;fade out the logo
+
+	jsr	ClearVRAM	;start afresh (VDP still set up though)
+	bsr	ClearScrolls	;clear horizontal and vertical scrolls
+
+	moveq	#1,d0 		;load cell address
+	moveq	#96,d1		;characters
+	moveq	#15,d2		;foreground colour
+	moveq	#8,d3		;background colour
+	lea	AsciiChars,a0	;data pointer
+	jsr	LoadChars	;load characters
+
+	lea	palette1,a0	;data pointer
+	jsr	SetPalette	;set up palette buffer
+
+	lea	titlestr,a0	;point at text data
+	bsr	console		;write data
+
+	move.w	#0,twinklecol	;set initial colour for cycling
+	move.w	#$011,twinklech	;set cycle value
+	
+	moveq	#16,d0		;16 frames
+	jsr	FadeIn		;fade in menu
+ 
+	rts
+	
+titlestr
+	c_scr	ScrollA
+	c_attr	1+Pal0
+	c_pos	4,5
+	dc.b	'Hardware and Logo Demonstration!'
+	c_attr	1+Pal2
+	c_pos	9,9
+	dc.b	'Select a demonstration'
+	c_pos	7,10
+	dc.b	'by using UP/DOWN and START'
+	c_attr	1+Pal0
+	c_pos	5,22
+	dc.b	'written by Andy Onions 1991/2.'
+	c_pos	5,23
+	dc.b	'(Realtime Games Software Ltd.)'
+optionsstr
+	c_pos	17,13
+	c_call	hilight0
+	dc.b	'SPRITE'
+	c_pos	17,15
+	c_call	hilight1
+	dc.b	'SCROLL'
+	c_pos	17,17
+	c_call	hilight2
+	dc.b	'WINDOW'
+	c_pos	17,19
+	c_call	hilight3
+	dc.b	'SOUND'
+	c_stop
+
+hilight0
+	moveq	#0,d0
+	bra.s	hijoin
+hilight1
+	moveq	#1,d0
+	bra.s	hijoin
+hilight2
+	moveq	#2,d0
+	bra.s	hijoin
+hilight3
+	moveq	#3,d0
+hijoin	move.w	#Pal1+1-SPACE,chrattr	;set console attribute
+	cmp.w	selected,d0	;see if this entry to be hilighted
+	beq.s	h_done		;yes so done
+	move.w	#Pal0+1-SPACE,chrattr	;else set hilight console attribute
+h_done	rts
+
+palette1
+	dc.w	0,16
+	dc.w	$000	;black (transparent)
+	dc.w	$222	;very dark gray
+	dc.w	$444	;dark grey
+	dc.w	$666	;medium dark grey
+	dc.w	$888	;medium light grey
+	dc.w	$AAA	;light grey
+	dc.w	$CCC	;very light grey
+	dc.w	$EEE	;white
+	dc.w	$000	;black background 0
+	dc.w	$00E	;red
+	dc.w	$0E0	;green
+	dc.w	$0EE	;yellow
+	dc.w	$E00	;blue
+	dc.w	$E0E	;magenta
+	dc.w	$EE0	;cyan
+	dc.w	$EEE	;white foreground 0
+	dc.w	24,1
+	dc.w	$E00	;background 1
+	dc.w	31,1
+	dc.w	$EEE	;foreground 1
+	dc.w	40,1
+	dc.w	$000	;background 2
+	dc.w	47,1
+	dc.w	$000	;foreground 2
+	dc.w	-1
+	
+Menu_Poll
+	move.w	twinklecol,d1	;get colour
+	add.w	twinklech,d1	;update it
+	and.w	#$0ff,d1	;mask green and red only (YELLOW)
+	beq.s	mp_change	;skip to negate if 0
+	cmp.w	#$0ff,d1	;check highes value
+	bne.s	mp_write	;skip to write if not
+mp_change
+	neg.w	twinklech	;switch cycle direction
+mp_write
+	move.w	d1,twinklecol	;save new colour
+	tst.b	VDPLock		;check VDP can be used on interrupts
+	bmi.s	mp_locked	;skip if not
+	moveq	#47*2,d0	;foreground 2
+	jsr	SetCRAMWrite	;write to CRAM
+	move.w	d1,VDPData	;write new colour to VRAM
+mp_locked
+	rts
+
+Menu_Call
+	moveq	#-1,d0		;assume up
+	testhit	KCodeUp		;up pressed? (at some time)
+	bne.s	mc_move		;yes so move
+	moveq	#1,d0		;assume down
+	testhit	KCodeDown	;down pressed?
+	bne.s	mc_move		;yes so move
+	testhit	KCodeStart	;start pressed?
+	beq.s	mc_done		;no so done
+	move.w	selected,d0	;get menu selection
+	add.w	#Sprite_Screen,d0	;add base screen number
+	move.w	d0,NewScreen	;set new screen
+	add.w	#1,selected	;force move down
+	and.w	#3,selected	;wrap (0..3)
+mc_done
+	rts			;NO screen update
+mc_move	add.w	d0,selected	;update selection
+	and.w	#3,selected	;wrap (0..3)
+	lea	optionsstr,a0	;point to console data
+	bsr	console		;affect hardware
+	rts
+
+spr_vpos	equ	0	;data structure for sprite table hardware
+spr_link	equ	2
+spr_addr	equ	4
+spr_hpos	equ	6
+
+Sprite_Init
+	moveq	#16,d0	 	;16 frames
+	jsr	FadeOut		;fade out (menu)
+
+	bsr	ClearCellMaps	;clear all cell maps
+	bsr	ClearScrolls	;clear vertical and horizontal scrolls
+
+	move.w	#100*32,d0	;VRAM address of character 100
+	move.w	#endsmiles-smilesprites,d1	;length of sprite data
+	lea	smilesprites,a0	;point to sprite data
+	jsr	CopyToVRAM	;load sprite data into VRAM
+
+	move.l	#8<<24+6<<16+4<<8+2,SpriteQtys	;set up a table of quantities of sprites required (sums to 20)
+	lea	BigBuffer,a0	;point to work RAM buffer space
+	lea	20*8(a0),a2	;point at another buffer allowing for 20 sprites in first
+	moveq	#1,d0		;link and count
+
+si_makesprs
+	move.w	d0,-(sp)	;save count/link
+	bsr	random		;get a random number
+	and.w	#$ff,d0		;mask byte
+	add.w	#$80,d0		;add base x of sprite positions (on screen)
+	move.w	d0,spr_hpos(a0)	;random x
+	bsr	random 		;get random number
+	and.w	#$7f,d0		;mask low 7 bits
+	add.w	#$80,d0		;add base y of sprite positions (on screen)
+	move.w	d0,spr_vpos(a0)	;random y
+	bsr	random		;get random number
+	lea	SpriteQtys,a1	;point to quantities table
+si_newsize
+	and.w	#3,d0	;0..3
+	tst.b	(a1,d0.w)	;any left?
+	bne.s	si_sizeok	;yes
+	addq.w	#1,d0		;try next size
+	bra.s	si_newsize
+si_sizeok
+	subq.b	#1,(a1,d0.w)	;one less of this size
+	add.w	d0,d0		;index word tables
+	move.w	si_sprsizes(pc,d0.w),d1	;size
+	move.b	1(sp),d1	;link
+	move.w	d1,spr_link(a0)	;size and link
+	move.w	si_genaddrs(pc,d0.w),spr_addr(a0)	;palette 0, no flips, no pri
+	addq.w	#8,a0		;next sprite
+	bsr	random
+	asr	#6,d0		;make sign_1.8 numbers (i.e. +/-1.999)
+	move.w	d0,d1
+	bsr	random
+	asr	#6,d0		;make sign_1.8 numbers (i.e. +/-1.999)
+	move.w	d0,(a2)+	;random dx
+	move.w	d1,(a2)+	;random dy
+	clr.l	(a2)+		;fractional x and y position (start at 0)
+	move.w	(sp)+,d0	;link/count
+	beq.s	si_done		;just done final link
+	addq.w	#1,d0		;next link
+	cmp.w	#20,d0		;last sprite
+	bne.s	si_notlast	;skip if not
+	moveq	#0,d0		;final link
+si_notlast
+	bra	si_makesprs	;continue till done
+
+si_done
+	lea	sprtitlestr,a0	;data ptr
+	bsr	console		;title/instructions
+
+	bsr	Sprite_Poll	;physically display all the sprites
+
+	moveq	#16,d0		;16 frames
+	jmp	FadeIn		;fade sprites in
+	
+si_genaddrs
+	dc.w	100,101,105,114		;start cells for each sprite
+si_sprsizes
+	dc.w	%0000<<8,%0101<<8,%1010<<8,%1111<<8	;sizes of each sprite (no link data)
+
+sprtitlestr
+	c_scr	ScrollA		;text on scroll A (could use B)
+	c_attr	1+Pal0		;sprites have higher priority
+	c_pos	10,5
+	dc.b	'Sprite Demonstration'
+	c_attr	1+Pal1+Pri	;sprites have lower priority
+	c_pos	4,22
+	dc.b	'Press START to quit this screen'
+	c_stop
+
+
+Sprite_Call
+	jsr	WaitFrame	;limit frame rate (and video sync)
+	lea	BigBuffer,a0	;point at sprite slave data
+	lea	20*8(a0),a1	;point at corresponding movement data
+	moveq	#20-1,d7	;count
+
+sc_movesprs
+	move.b	(a1),d0		;get dx integer
+	ext.w	d0		;sign extend
+	move.b	1(a1),d1	;get dx fraction
+	lsl.w	#8,d1		;get in top byte of word
+	add.w	d1,4(a1)	;add fraction
+	move.w	spr_hpos(a0),d1	;get x
+	addx.w	d1,d0		;add integer (and fractional carry)
+	cmp.w	#$80-32,d0	;left x
+	blt.s	sc_bouncex	;bounce if less than
+	cmp.w	#$80+320+32,d0	;right x
+	ble.s	sc_nobouncex	;no bounce if less than or equal
+sc_bouncex
+	neg.w	(a1)		;bounce (negate dx)
+sc_nobouncex
+	move.w	d0,spr_hpos(a0)	;update new x
+
+	move.b	2(a1),d0	;get dy integer
+	ext.w	d0
+	move.b	3(a1),d1	;get dy fraction
+	lsl.w	#8,d1
+	add.w	d1,6(a1)
+	move.w	spr_vpos(a0),d1
+	addx.w	d1,d0
+	cmp.w	#$80-32,d0	;top y
+	blt.s	sc_bouncey
+	cmp.w	#$80+200+32,d0	;bottom y
+	ble.s	sc_nobouncey
+sc_bouncey
+	neg.w	2(a1)
+sc_nobouncey
+	move.w	d0,spr_vpos(a0)	;identical code for y
+
+	addq.w	#8,a0		;next sprite slave
+	addq.w	#8,a1		;next movement data
+	dbra	d7,sc_movesprs	;done another sprite
+
+	bra	startkey	;see if START been pressed
+
+
+Sprite_Poll
+	move.w	#SpriteAttr,d0	;VRAM sprite attribute address
+	move.w	#20*8,d1	;bytes (8 bytes per sprite - 20 sprites)
+	lea	BigBuffer,a0	;point to sprite data (in work RAM buffer)
+	jmp	CopyToVRAM	;copy slaves to VRAM to physically show sprites
+
+Scroll_Init
+	moveq	#16,d0		;16 frames
+	jsr	FadeOut		;fade out (menu)
+
+	bsr	ClearCellMaps	;clear cell maps
+	bsr	ClearScrolls	;clear scroll registers
+
+	move.w	#130,d0		;cell address
+	lea	scrtitlestr,a0	;string pointer
+	bsr	spritechars	;load characters for sprites
+
+	move.w	#0,scrollmode	;initialize mode for call
+
+	lea	HScrollSlave,a0	;point to horizontal scroll slaves
+	moveq	#0,d0		;clear d0
+	move.w	#(1024+80)/4-1,d1 ;length of slaves
+sci_clr
+	move.l	d0,(a0)+	;clear scroll
+	dbra	d1,sci_clr	;do all lines
+
+	lea	sci_palette(pc),a0 ;data pointer
+	jsr	SetPalette	;set up palette buffer
+
+	lea	sci_scrollstr(pc),a0 ;point to text
+	bsr	console		;print info
+
+	moveq	#16,d0		;16 frames
+	jmp	FadeIn		;fade in
+
+sci_palette
+	dc.w	40,1
+	dc.w	$00E	;background 2 (RED)
+	dc.w	47,1
+	dc.w	$EEE	;foreground 2 (WHITE)
+	dc.w	56,1
+	dc.w	$EE0	;background 3 (CYAN)
+	dc.w	63,1
+	dc.w	$E00	;foreground 3 (BLUE)
+	dc.w	-1
+	
+sci_scrollstr
+	c_scr	ScrollA	;text on scroll A
+	c_attr	1+Pal2
+	c_pos	1,8
+	dc.b	'All of the white on red   '
+	c_pos	1,9
+	dc.b	'text is on SCROLLA,       '
+	c_pos	1,10
+	dc.b	'which has higher priority '
+	c_pos	1,11
+	dc.b	'than the blue on cyan     '
+	c_pos	1,12
+	dc.b	'text, which is on SCROLLB '
+	c_scr	ScrollB
+	c_attr	1+Pal3
+	c_pos	14,14
+	dc.b	'This text is on SCROLLB,  '
+	c_pos	14,15
+	dc.b	'which can be scrolled in- '
+	c_pos	14,16
+	dc.b	'dependently of SCROLLA    '
+	c_pos	14,17
+	dc.b	'Both scrolls can be moved '
+	c_pos	14,18
+	dc.b	'by pixels in any direction'
+	c_pos	14,19
+	dc.b	'The other text use sprites'
+	c_pos	14,20
+	dc.b	'and have highest priority '
+	c_stop
+
+
+Scroll_Call
+	bsr	startkey	;see if user abort
+	move.w	scrollmode,d0	;get mode
+	move.l	scc_modes(pc,d0.w),-(sp) ;stack respective routine address
+	rts			;call routine
+scc_modes
+	dc.l	scc_wait,scc_textA,scc_wait,scc_allA
+	dc.l	scc_wait,scc_textA2,scc_wait,scc_allA2
+	dc.l	scc_wait,scc_textA3,scc_wait,scc_allA3
+	dc.l	scc_wait,scc_textA2,scc_wait,scc_allA4
+	dc.l	scc_wait,scc_textB,scc_wait,scc_allB
+	dc.l	scc_wait,scc_textboth,scc_wait,scc_both
+	dc.l	scc_wait,scc_cellmode,scc_wait,scc_cellA
+	dc.l	scc_wait,scc_cellBtext,scc_wait,scc_cellB
+	dc.l	scc_wait,scc_textind,scc_wait,scc_ind
+	dc.l	scc_wait,scc_textboth,scc_wait,scc_cellboth
+	dc.l	scc_wait,scc_linemode,scc_wait,scc_line
+	dc.l	scc_wait,scc_change,scc_wait,scc_both
+	dc.l	scc_wait,scc_restart
+
+scc_wait
+	moveq	#30,d0
+	jsr	WaitFrames	;wait 1/2sec
+	addq.w	#4,scrollmode	;next mode
+	rts
+
+scc_textA
+	lea	scc_allAstr(pc),a0 ;point at data
+	bsr	console		;print
+	move.w	#256,scrolltime	;frames to wait
+scc_donext
+	addq.w	#4,scrollmode	;next mode
+	rts
+scc_allAstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'All of SCROLLA horizontally'
+	c_stop
+
+scc_allA
+	jsr	WaitFrame	;video sync
+	addq.w	#2,HScrollSlave	;scroll
+	subq.w	#1,scrolltime	;done frame
+	beq.s	scc_donext	;next mode if done
+	rts
+
+scc_textA2
+	lea	scc_allAstr2(pc),a0 ;point at data
+	bsr	console		;print
+	move.w	#128,scrolltime	;time
+	addq.w	#4,scrollmode	;next
+	rts
+scc_allAstr2
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'and back again!'
+	c_attr	0+Pal0
+	dc.b	'             '
+	c_stop
+
+scc_allA2
+	jsr	WaitFrame	;sync
+	subq.w	#4,HScrollSlave	;scroll
+	subq.w	#1,scrolltime	;done
+	beq	scc_donext	;next
+	rts
+
+scc_textA3
+	lea	scc_allAstr3(pc),a0
+	bsr	console
+	move.w	#256,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_allAstr3
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'now vertically'
+	c_attr	0+Pal0
+	dc.b	' '
+	c_stop
+
+scc_allA3
+	jsr	WaitFrame
+	subq.w	#1,HScrollSlave+1024
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_allA4
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave+1024
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_textB
+	lea	scc_allBstr(pc),a0
+	bsr	console
+	move.w	#256,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_allBstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	0+Pal0
+	dc.b	'               '
+	c_scr	ScrollB
+	c_pos	1,0
+	c_attr	1+Pal3
+	dc.b	'B is independent!'
+	c_stop
+
+scc_allB
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave+2
+	subq.w	#1,HScrollSlave+1024+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+	
+scc_textboth
+	lea	scc_bothstr(pc),a0
+	bsr	console
+	move.w	#512,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_bothstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'BOTH '
+	c_attr	0+Pal0
+	dc.b	'         '
+	c_scr	ScrollB
+	c_pos	1,0
+	dc.b	'     '
+	c_attr	1+Pal3
+	dc.b	'TOGETHER'
+	c_attr	0+Pal0
+	dc.b	'           '
+	c_stop
+
+scc_both
+	jsr	WaitFrame
+	addq.w	#4,HScrollSlave
+	subq.w	#1,HScrollSlave+1024
+	subq.w	#2,HScrollSlave+2
+	addq.w	#3,HScrollSlave+1024+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_cellmode
+	move.b	VDP_ModeSet3,d0
+	and.b	#%11111000,d0
+	or.b	#%110,d0
+	move.b	d0,VDP_ModeSet3
+	st	VDPLock		;lock VDP (no access by interrupts 'poll')
+	jsr	SetVDPRegs	;set 1 cell horizontal and 2 cell vertical scroll mode
+	sf	VDPLock		;interrupt access ok now
+	lea	scc_cellAstr(pc),a0
+	bsr	console
+	move.w	#512,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_cellAstr
+	c_scr	ScrollB
+	c_pos	6,0
+	c_attr	0+Pal0
+	dc.b	'       '
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'Horizontal 1 cell'
+	c_stop
+
+scc_cellA
+	jsr	WaitFrame
+	addq.w	#1,HScrollSlave+8*32
+	subq.w	#2,HScrollSlave+9*32
+	addq.w	#3,HScrollSlave+10*32
+	subq.w	#1,HScrollSlave+11*32
+	addq.w	#2,HScrollSlave+12*32
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_cellBtext
+	lea	scc_cellBstr(pc),a0
+	bsr	console
+	move.w	#256,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_cellBstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	0+Pal0
+	dc.b	'                        '
+	c_scr	ScrollB
+	c_pos	1,0
+	c_attr	1+Pal3
+	dc.b	'Vertical 2 cell'
+	c_stop
+
+scc_cellB
+	jsr	WaitFrame
+	addq.w	#1,HScrollSlave+1024+8*4+2
+	subq.w	#2,HScrollSlave+1024+9*4+2
+	addq.w	#3,HScrollSlave+1024+10*4+2
+	subq.w	#1,HScrollSlave+1024+11*4+2
+	addq.w	#2,HScrollSlave+1024+12*4+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+	
+scc_textind
+	lea	scc_indstr(pc),a0
+	bsr	console
+	move.w	#512,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_indstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'Both '
+	c_scr	ScrollB
+	c_pos	1,0
+	c_attr	0+Pal0
+	dc.b	'     '
+	c_attr	1+Pal3
+	dc.b	'Independent'
+	c_stop
+
+scc_ind
+	jsr	WaitFrame
+	addq.w	#1,HScrollSlave+8*32
+	subq.w	#2,HScrollSlave+9*32
+	addq.w	#3,HScrollSlave+10*32
+	subq.w	#1,HScrollSlave+11*32
+	addq.w	#2,HScrollSlave+12*32
+	addq.w	#1,HScrollSlave+1024+8*4+2
+	subq.w	#2,HScrollSlave+1024+9*4+2
+	addq.w	#3,HScrollSlave+1024+10*4+2
+	subq.w	#1,HScrollSlave+1024+11*4+2
+	addq.w	#2,HScrollSlave+1024+12*4+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_cellboth
+	jsr	WaitFrame
+	addq.w	#1,HScrollSlave+8*32
+	subq.w	#2,HScrollSlave+9*32
+	addq.w	#3,HScrollSlave+10*32
+	subq.w	#1,HScrollSlave+11*32
+	addq.w	#2,HScrollSlave+12*32
+	addq.w	#1,HScrollSlave+8*32+2
+	subq.w	#2,HScrollSlave+9*32+2
+	addq.w	#3,HScrollSlave+10*32+2
+	subq.w	#1,HScrollSlave+11*32+2
+	addq.w	#2,HScrollSlave+12*32+2
+	addq.w	#1,HScrollSlave+1024+8*4
+	subq.w	#2,HScrollSlave+1024+9*4
+	addq.w	#3,HScrollSlave+1024+10*4
+	subq.w	#1,HScrollSlave+1024+11*4
+	addq.w	#2,HScrollSlave+1024+12*4
+	addq.w	#1,HScrollSlave+1024+8*4+2
+	subq.w	#2,HScrollSlave+1024+9*4+2
+	addq.w	#3,HScrollSlave+1024+10*4+2
+	subq.w	#1,HScrollSlave+1024+11*4+2
+	addq.w	#2,HScrollSlave+1024+12*4+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+	
+scc_linemode
+	move.b	VDP_ModeSet3,d0
+	or.b	#%111,d0
+	move.b	d0,VDP_ModeSet3
+	st	VDPLock		;lock VDP
+	jsr	SetVDPRegs	;set 1 cell horizontal and 2 cell vertical scroll mode
+	sf	VDPLock		;unlock VDP
+	lea	scc_linestr(pc),a0
+	bsr	console
+	move.w	#512,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_linestr
+	c_scr	ScrollB
+	c_pos	6,0
+	c_attr	0+Pal0
+	dc.b	'        '
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'Horizontal 1 line scroll'
+	c_stop
+
+scc_line
+	jsr	WaitFrame	;sync
+	lea	HScrollSlave+8*32,a0 ;point at slaves
+	moveq	#5*8-1,d0	;count
+scc_scroll40
+	move.w	d0,d1
+	and.w	#7,d1
+	lsl.w	#5,d1
+	lsl.w	#8,d1
+	asr.w	#5,d1
+	asr.w	#8,d1
+	add.w	d1,(a0)
+	addq.w	#4,a0
+	dbra	d0,scc_scroll40
+	lea	HScrollSlave+14*32+2,a0
+	moveq	#7*8-1,d0	
+scc_scroll56
+	move.w	d0,d1
+	and.w	#3,d1
+	addq.w	#2,d1
+	add.w	d1,(a0)
+	addq.w	#4,a0
+	dbra	d0,scc_scroll56
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_change
+	move.b	VDP_ModeSet3,d0
+	and.b	#%11111000,d0
+	move.b	d0,VDP_ModeSet3
+	st	VDPLock
+	jsr	SetVDPRegs	;set full scroll
+	sf	VDPLock
+
+	moveq	#14,d0
+	moveq	#14,d1
+	move.w	#26,d2
+	move.w	#7,d3
+	move.w	#Pri+Pal3,d4
+	move.w	#ScrollB,d5
+	st	VDPLock		;lock VDP
+	jsr	SetBlockAttr
+	sf	VDPLock		;unlock VDP
+
+	lea	scc_changestr(pc),a0
+	bsr	console
+	move.w	#256,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_changestr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal3
+	dc.b	'Changed '
+	c_attr	0+Pal0
+	dc.b	'                '
+	c_scr	ScrollB
+	c_attr	1+Pal2
+	c_pos	9,0
+	dc.b	'priorities'
+	c_stop
+
+scc_restart
+	moveq	#14,d0
+	moveq	#14,d1
+	move.w	#26,d2
+	move.w	#7,d3
+	move.w	#Pal3,d4
+	move.w	#ScrollB,d5
+	st	VDPLock		;lock VDP
+	jsr	SetBlockAttr
+	sf	VDPLock		;unlock VDP
+	lea	scc_clearbstr(pc),a0
+	bsr	console
+	move.w	#4,scrollmode
+	rts
+scc_clearbstr
+	c_scr	ScrollB
+	c_pos	0,0
+	c_attr	0+Pal0
+	dc.b	'                    '	
+	c_stop
+	
+
+Scroll_Poll
+	moveq	#0,d0		;VSRAM address (first two columns)
+	jsr	SetVSRAMWrite	;set write to vertical scroll RAM
+	lea	VScrollSlave,a0	;point at slaves
+	lea	VDPData,a1	;point at VDP data port
+	moveq	#80/4-1,d0	;long words (less 1)
+sp_vs
+	move.l	(a0)+,(a1)	;move scrolls to hardware
+	dbra	d0,sp_vs	;do all registers
+	
+	move.w	#HScroll,d0	;address of horizontal scroll table (in VRAM)
+	move.w	#1024,d1	;length of table
+	lea	HScrollSlave,a0	;point to slaves
+	jmp	CopyToVRAM	;update horizontal scrolls
+
+
+scrtitlestr
+	dc.b	'Scro'
+	dc.b	'll D'
+	dc.b	'emon'
+	dc.b	'stra'
+	dc.b	'tion'
+	dc.b	'Pres'
+	dc.b	's ST'
+	dc.b	'ART '
+	dc.b	'to q'
+	dc.b	'uit '
+	dc.b	'this'
+	dc.b	' scr'
+	dc.b	'een'
+	dc.b	0
+
+Window_Init
+	moveq	#16,d0		;16 frames
+	jsr	FadeOut		;fade out (menu)
+
+	bsr	ClearCellMaps	;clear cell maps
+	bsr	ClearScrolls	;clear scrolls
+
+	move.w	#130,d0		;cell address
+	lea	wintitlestr,a0	;string pointer
+	bsr	spritechars	;load characters for sprites
+
+	move.w	#0,windowmode	;set initial mode
+
+	lea	HScrollSlave,a0	;point to slaves
+	moveq	#0,d0		;clear d0
+	move.w	#(1024+80)/4-1,d1 ;length
+wi_clr
+	move.l	d0,(a0)+	;clear scroll
+	dbra	d1,wi_clr	;clear all
+
+	lea	wi_palette(pc),a0 ;data pointer
+	jsr	SetPalette	;set up palette buffer
+
+	lea	wi_windowstr(pc),a0 ;point to text data
+	bsr	console		;print it
+
+	move.b	#10,VDP_WindowHPos ;set window from left to position 10
+	jsr	SetVDPRegs	;set registers (no need to lock VDP)
+
+	moveq	#16,d0		;16 frames
+	jmp	FadeIn		;fade in
+
+wi_palette
+	dc.w	40,1
+	dc.w	$00E	;background 2 (RED)
+	dc.w	47,1
+	dc.w	$EEE	;foreground 2 (WHITE)
+	dc.w	56,1
+	dc.w	$EE0	;background 3 (CYAN)
+	dc.w	63,1
+	dc.w	$E00	;foreground 3 (BLUE)
+	dc.w	-1
+	
+wi_windowstr
+	c_scr	Window	;text on window
+	c_attr	1+Pal1
+	c_pos	1,8
+	dc.b	'This text is on the'
+	c_pos	1,9
+	dc.b	'WINDOW which steals'
+	c_pos	1,10
+	dc.b	'the display from   '
+	c_pos	1,11
+	dc.b	'SCROLLA. The WINDOW'
+	c_pos	1,12
+	dc.b	'currently occupies '
+	c_pos	1,13
+	dc.b	'the left half side '
+	c_pos	1,14
+	dc.b	'of the screen.     '
+	c_scr	ScrollA
+	c_attr	1+Pal2
+	c_pos	22,7
+	dc.b	'This text is on '
+	c_pos	22,8
+	dc.b	'SCROLLA. When it'
+	c_pos	22,9
+	dc.b	'scrolls, the    '
+	c_pos	22,10
+	dc.b	'WINDOW does not!'
+	c_attr	1+Pal3
+	c_scr	ScrollB
+	c_pos	20,12
+	dc.b	'This is on SCROLLB, '
+	c_pos	20,13
+	dc.b	'which has lower     '
+	c_pos	20,14
+	dc.b	'priority than SCROLL'
+	c_pos	20,15
+	dc.b	'A or WINDOW, but the'
+	c_pos	20,16
+	dc.b	'WINDOW is transpar- '
+	c_pos	20,17
+	dc.b	'ent in places so B  '
+	c_pos	20,18
+	dc.b	'will show through   '
+	
+	c_stop
+
+wintitlestr
+	dc.b	'Wind'
+	dc.b	'ow D'
+	dc.b	'emon'
+	dc.b	'stra'
+	dc.b	'tion'
+	dc.b	'Pres'
+	dc.b	's ST'
+	dc.b	'ART '
+	dc.b	'to q'
+	dc.b	'uit '
+	dc.b	'this'
+	dc.b	' scr'
+	dc.b	'een'
+	dc.b	0
+
+Window_Call
+	bsr	startkey	;see if user abort
+	move.w	windowmode,d0	;get current mode
+	move.l	wc_modes(pc,d0.w),-(sp) ;stack respective routine address
+	rts			;call routine
+wc_modes
+	dc.l	wc_wait,wc_seta,wc_wait,wc_alla
+	dc.l	wc_wait,wc_seta2,wc_wait,wc_alla2
+	dc.l	wc_wait,wc_seta3,wc_wait,wc_alla3
+	dc.l	wc_wait,wc_setb,wc_wait,wc_allb
+	dc.l	wc_wait,wc_setb2,wc_wait,wc_allb2
+	dc.l	wc_wait,wc_setboth,wc_wait,wc_both
+	dc.l	wc_wait,wc_setchange,wc_wait,wc_change
+	dc.l	wc_restart
+
+wc_wait
+	moveq	#30,d0
+	jsr	WaitFrames	;wait 1/2 sec
+wc_donext
+	addq.w	#4,windowmode	next mode
+	rts
+
+wc_seta
+	lea	wc_setastr(pc),a0
+	bsr	console
+	move.w	#128,windowtime
+	bra.s	wc_donext
+wc_setastr
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Vertical A scroll'
+	c_attr	0+Pal0
+	dc.b	'  '
+	c_stop
+
+wc_alla
+	jsr	WaitFrame
+	addq.w	#2,VScrollSlave
+	subq.w	#1,windowtime
+	beq.s	wc_donext
+	rts
+
+wc_seta2
+	lea	wc_setastr2(pc),a0
+	bsr	console
+	move.w	#256,windowtime
+	bra.s	wc_donext
+wc_setastr2
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Horizontal A scroll'
+	c_pos	1,17
+	dc.b	'This causes garbage'
+	c_pos	1,18
+	dc.b	'when the window is '
+	c_pos	1,19
+	dc.b	'on the left side of'
+	c_pos	1,20
+	dc.b	'the screen         '
+	c_stop
+
+wc_alla2
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_seta3
+	lea	wc_setastr3(pc),a0
+	bsr	console
+	moveq	#20,d0
+	moveq	#7,d1
+	move.w	#2,d2
+	move.w	#4,d3
+	move.w	#Pri+Pal0+1,d4	;SPACE character with BLACK (not TRANSPARENT) background
+	move.w	#ScrollB,d5
+	st	VDPLock
+	jsr	SetCellBlock
+	sf	VDPLock
+	move.w	#256,windowtime
+	bra	wc_donext
+wc_setastr3
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,17
+	dc.b	'The solution is to '
+	c_pos	1,18
+	dc.b	'blank a 2 cell wide'
+	c_pos	1,19
+	dc.b	'gap on SCROLLB with'
+	c_pos	1,20
+	dc.b	'high priority      '
+	c_stop
+
+wc_alla3
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_setb
+	lea	wc_setbstr(pc),a0
+	bsr	console
+	moveq	#20,d0
+	moveq	#7,d1
+	move.w	#2,d2
+	move.w	#4,d3
+	move.w	#Pal0+0,d4	;SPACE character with TRANSPARENT background
+	move.w	#ScrollB,d5
+	st	VDPLock
+	jsr	SetCellBlock
+	sf	VDPLock
+	move.w	#256,windowtime
+	bra	wc_donext
+wc_setbstr
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Horizontal B scroll'
+	c_attr	1+Pal1
+	c_pos	1,17
+	dc.b	'SCROLLB does not   '
+	c_pos	1,18
+	dc.b	'have the same      '
+	c_pos	1,19
+	dc.b	'problems as SCROLLA'
+	c_pos	1,20
+	c_attr	0+Pal0
+	dc.b	'                   '
+	c_stop
+
+wc_allb
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave+2
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_setb2
+	lea	wc_setb2str(pc),a0
+	bsr	console
+	move.w	#64,windowtime
+	bra	wc_donext
+wc_setb2str
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Vertical B scroll'
+	c_attr	0+Pal0
+	dc.b	'  '
+	c_pos	1,17
+	dc.b	'                   '
+	c_pos	1,18
+	dc.b	'                   '
+	c_pos	1,19
+	dc.b	'                   '
+	c_stop
+
+wc_allb2
+	jsr	WaitFrame
+	subq.w	#4,VScrollSlave+2
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_setboth
+	lea	wc_setbothstr(pc),a0
+	bsr	console
+	move.w	#256,windowtime
+	bra	wc_donext
+wc_setbothstr
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Both independent'
+	c_attr	0+Pal0
+	dc.b	' '
+	c_stop
+
+wc_both
+	jsr	WaitFrame
+	addq.w	#2,VScrollSlave
+	subq.w	#2,HScrollSlave+2
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_setchange
+	lea	wc_setchstr(pc),a0
+	bsr	console
+	moveq	#20,d0
+	moveq	#12,d1
+	moveq	#20,d2
+	moveq	#7,d3
+	move.w	#Pri+Pal3,d4
+	move.w	#ScrollB,d5
+	st	VDPLock
+	jsr	SetBlockAttr
+	sf	VDPLock
+	move.w	#256,windowtime
+	bra	wc_donext
+wc_setchstr
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Changed priority'
+	c_stop
+
+wc_change
+	jsr	WaitFrame
+	subq.w	#2,VScrollSlave
+	subq.w	#3,VScrollSlave+2
+	addq.w	#2,HScrollSlave+2
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_restart
+	move.w	#0,windowmode
+	moveq	#20,d0
+	moveq	#12,d1
+	moveq	#20,d2
+	moveq	#7,d3
+	move.w	#Pal3,d4
+	move.w	#ScrollB,d5
+	st	VDPLock
+	jsr	SetBlockAttr
+	sf	VDPLock
+	rts
+
+Window_Poll
+	moveq	#0,d0 		;VRAM address (first two columns)
+	jsr	SetVSRAMWrite	;set write to vertical scroll RAM
+	lea	VScrollSlave,a0	;point to slaves
+	lea	VDPData,a1	;point to VDP data port
+	moveq	#80/4-1,d0	;count
+wp_vs
+	move.l	(a0)+,(a1)	;move slave to hardware
+	dbra	d0,wp_vs	;move all
+
+	move.w	#HScroll,d0	;horizontal scroll table address (in VRAM)
+	move.w	#1024,d1	;length
+	lea	HScrollSlave,a0	;point to slaves
+	jmp	CopyToVRAM	;set hardware
+
+Sound_Init
+	moveq	#16,d0 		;16 frames
+	jsr	FadeOut		;fade out (menu)
+
+	lea	z80data,a0	;point at Z80 program
+	move.w	#z80end-z80data-1,d0 ;program length (less 1)
+	jsr	LoadZ80		;load program into Z80 and begin execution
+
+	bsr	ClearCellMaps	;clear all cell maps
+	bsr	ClearScrolls	;clear vertical and horizontal scrolls
+
+	move.w	#100*32,d0	;VRAM address of character 100
+	move.w	#endpiano-pianocells,d1	;length of sprite data
+	lea	pianocells,a0	;point to sprite data
+	jsr	CopyToVRAM	;load sprite data into VRAM
+
+	moveq	#5,d0		;start x
+	moveq	#10,d1		;start y
+	moveq	#29,d2		;width
+	moveq	#8,d3		;height
+	move.w	#ScrollA,d4	;screen address
+	lea	pianomap,a0	;pointer to map data
+	jsr	LoadCellMap	;load a cell map
+	
+	move.w	#$80+14*8,BigBuffer	;y
+	move.w	#0,BigBuffer+2		;size and link
+	move.w	#105,BigBuffer+4	;cell
+	move.w	#$80+7*8-2,BigBuffer+6	;x
+
+	lea	sndtitlestr,a0	;data ptr
+	bsr	console	;title/instructions
+
+	moveq	#16,d0	;16 frames
+	jmp	FadeIn	;fade in
+	
+sndtitlestr
+	c_scr	ScrollA		;text on scroll A (could use B)
+	c_attr	1+Pal0		;sprites have higher priority
+	c_pos	10,5
+	dc.b	'Sound Demonstration'
+	c_pos	0,7
+	dc.b	'Left/Right to move, A to strike/release'
+	c_attr	1+Pal1+Pri	;sprites have lower priority
+	c_pos	4,22
+	dc.b	'Press START to quit this screen'
+	c_stop
+
+Sound_Call
+	jsr	WaitFrame	;limit frame rate (and video sync)
+
+	testheld KCodeLeft	;holding left
+	beq.s	noleft		;skip if not
+	moveq	#-2,d0		;dx
+	moveq	#0,d1		;dy
+	bsr	pianomove	;move cursor
+noleft
+	testheld KCodeRight	;holding right
+	beq.s	noright		;skip if not
+	moveq	#2,d0		;dx
+	moveq	#0,d1		;dy
+	bsr	pianomove	;move cursor
+noright
+	testheld KCodeUp	;holding up
+	beq.s	noup		;skip if not
+	moveq	#0,d0		;dx
+	moveq	#-2,d1		;dy
+	bsr	pianomove	;move cursor
+noup
+	testheld KCodeDown	;holding down
+	beq.s	nodown		;skip if not
+	moveq	#0,d0		;dx
+	moveq	#2,d1		;dy
+	bsr	pianomove	;move cursor
+nodown
+	testheld KCodeA		;holding a
+	bne.s	playnote	;skip if holding
+	testhit KCodeA		;A been hit
+	beq.s	noA		;skip if not
+playnote
+	tst.b	playing		;note currently playing?
+	bne	startkey	;yes so check user abort
+	bsr	MakeSound	;need a new note
+	st	playing		;flag Z80 playing note
+	bra	startkey	;check user abort
+
+noA	tst.b	playing		;no key A, so check if playing
+	beq	startkey	;check user abort if no note
+	sf	playing		;else no longer playing note
+	bsr	SoundOff	;kill note
+	bsr	startkey	;check user abort
+	rts
+pianomove
+	add.w	BigBuffer+6,d0	;add x and dx
+	cmp.w	#$80+33*8,d0	;check right
+	bgt.s	offkeyx		;skip if too big
+	cmp.w	#$80+7*8-2,d0	;check left
+	blt.s	offkeyx		;skip if too small
+	move.w	d0,BigBuffer+6	;update cursor x (slave)
+offkeyx
+	add.w	BigBuffer,d1	;add y to dy
+	cmp.w	#$80+16*8,d1	;compare bottom
+	bgt.s	offkeyy		;skip if too low
+	cmp.w	#$80+14*8,d1	;compare top
+	blt.s	offkeyy		;skip if too high
+	move.w	d1,BigBuffer	;update cursor y (slave)
+offkeyy
+	rts    	
+
+MakeSound
+	move.w	BigBuffer+6,d2	;get x
+	lea	BlackEdges,a0	;point to edge data
+	cmp	#$80+15*8,BigBuffer ;check if only white notes
+	blt.s	getnote		;skip if can be black or white
+	lea	WhiteEdges,a0	;point to edge data
+
+getnote	move.b	(a0)+,d0	;get note
+	move.b	(a0)+,d1	;get octave
+	cmp.w	(a0)+,d2	;found edge
+	bgt.s	getnote		;if not keep going
+	bsr	SoundOn		;sound the note
+	rts
+BlackEdges
+	dc.b	5,2
+	dc.w	$80+7*8+4
+	dc.b	6,2
+	dc.w	$80+7*8+12
+	dc.b	7,2
+	dc.w	$80+7*8+20
+	dc.b	8,2
+	dc.w	$80+7*8+28
+	dc.b	9,2
+	dc.w	$80+7*8+36
+	dc.b	10,2
+	dc.w	$80+7*8+44
+	dc.b	11,2
+	dc.w	$80+7*8+56
+	dc.b	0,3
+	dc.w	$80+7*8+68
+	dc.b	1,3
+	dc.w	$80+7*8+76
+	dc.b	2,3
+	dc.w	$80+7*8+84
+	dc.b	3,3
+	dc.w	$80+7*8+92
+	dc.b	4,3
+	dc.w	$80+7*8+104
+	dc.b	5,3
+	dc.w	$80+7*8+116
+	dc.b	6,3
+	dc.w	$80+7*8+124
+	dc.b	7,3
+	dc.w	$80+7*8+132
+	dc.b	8,3
+	dc.w	$80+7*8+140
+	dc.b	9,3
+	dc.w	$80+7*8+148
+	dc.b	10,3
+	dc.w	$80+7*8+156
+	dc.b	11,3
+	dc.w	$80+7*8+168
+	dc.b	0,4
+	dc.w	$80+7*8+180
+	dc.b	1,4
+	dc.w	$80+7*8+188
+	dc.b	2,4
+	dc.w	$80+7*8+196
+	dc.b	3,4
+	dc.w	$80+7*8+204
+	dc.b	4,4
+	dc.w	$80+7*8+216
+WhiteEdges
+	dc.b	5,2
+	dc.w	$80+7*8+8
+	dc.b	7,2
+	dc.w	$80+7*8+24
+	dc.b	9,2
+	dc.w	$80+7*8+40
+	dc.b	11,2
+	dc.w	$80+7*8+56
+	dc.b	0,3
+	dc.w	$80+7*8+72
+	dc.b	2,3
+	dc.w	$80+7*8+88
+	dc.b	4,3
+	dc.w	$80+7*8+104
+	dc.b	5,3
+	dc.w	$80+7*8+120
+	dc.b	7,3
+	dc.w	$80+7*8+136
+	dc.b	9,3
+	dc.w	$80+7*8+152
+	dc.b	11,3
+	dc.w	$80+7*8+168
+	dc.b	0,4
+	dc.w	$80+7*8+184
+	dc.b	2,4
+	dc.w	$80+7*8+200
+	dc.b	4,4
+	dc.w	$80+7*8+216
+
+Sound_Poll
+	move.w	#SpriteAttr,d0	;sprite attribute address
+	jsr	SetVRAMWrite	;set write to VRAM
+	lea	BigBuffer,a0	;point to data buffer
+	move.l	(a0)+,VDPData	;move sprite data to VRAM
+	move.l	(a0)+,VDPData	;move sprite data to VRAM
+	rts
+
+Sound_Tidy
+SoundOff
+	move.w	sr,-(sp)	;save interrupt status
+	DI			;disable interrupts
+	Z80di			;grab Z80
+	sf	Z80Play		;flag no note starting
+	st	Z80Stop		;flag stop any current note
+	Z80ei			;allow Z80 to continue
+	move.w	(sp)+,sr	;reset old interrupt status
+	rts
+
+SoundOn
+	move.w	sr,-(sp) 	;save interrupt status
+	DI			;disable interrupts
+	Z80di			;grab Z80
+	move.b	d0,Z80Note	;save note
+	move.b	d1,Z80Octave	;save octave
+	st	Z80Play		;flag note starting
+	sf	Z80Stop		;flag note not stopping
+	Z80ei			;allow Z80 to continue
+	move.w	(sp)+,sr	;reset old interrupt status
+	rts
+
+pianomap
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,101,100,101,100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	104,100,101,100,101,100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	104,100,101,100,101,100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	100,101,100,101,100,101,100,101,100,101,100,101
+
+pianocells
+	dc.l	$66666666	;100 all white
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+
+	dc.l	$66666667	;101 white
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+
+	dc.l	$66668888	;102 white/bla6k
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+
+	dc.l	$88886666	;103 bla6k/white
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+
+	dc.l	$00000007	;white border
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+
+	dc.l	$88880000	;105 cursor
+	dc.l	$87778000
+	dc.l	$87780000
+	dc.l	$87878000
+	dc.l	$08087800
+	dc.l	$00008780
+	dc.l	$00000878
+	dc.l	$00000080
+
+endpiano
+
+AsciiChars
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$38,$38,$38,$38,$00,$38,$38,$00
+	dc.b	$6C,$6C,$24,$6C,$00,$00,$00,$00
+	dc.b	$48,$FC,$FC,$48,$FC,$FC,$48,$00
+	dc.b	$30,$FC,$C0,$FC,$0C,$FC,$30,$00
+	dc.b	$00,$E4,$E8,$F0,$3C,$5C,$9C,$00
+	dc.b	$60,$90,$40,$20,$54,$88,$74,$00
+	dc.b	$30,$30,$10,$30,$00,$00,$00,$00
+	dc.b	$1C,$38,$70,$70,$70,$38,$1C,$00
+	dc.b	$70,$38,$1C,$1C,$1C,$38,$70,$00
+	dc.b	$10,$54,$38,$7C,$38,$54,$10,$00
+	dc.b	$30,$30,$FC,$FC,$30,$30,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$38,$18,$30
+	dc.b	$00,$00,$7C,$7C,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$38,$38,$00
+	dc.b	$06,$0E,$1C,$38,$70,$E0,$C0,$00
+	dc.b	$78,$CC,$CC,$CC,$CC,$CC,$78,$00
+	dc.b	$1C,$3C,$0C,$0C,$0C,$0C,$0C,$00
+	dc.b	$78,$FC,$CC,$1C,$70,$FC,$FC,$00
+	dc.b	$78,$FC,$0C,$7C,$0C,$FC,$78,$00
+	dc.b	$1C,$3C,$6C,$CC,$FC,$0C,$0C,$00
+	dc.b	$FC,$FC,$C0,$F8,$0C,$FC,$78,$00
+	dc.b	$38,$60,$C0,$F8,$CC,$CC,$78,$00
+	dc.b	$FC,$FC,$0C,$18,$30,$30,$30,$00
+	dc.b	$78,$FC,$CC,$78,$CC,$FC,$78,$00
+	dc.b	$78,$FC,$CC,$7C,$0C,$7C,$78,$00
+	dc.b	$00,$38,$38,$00,$00,$38,$38,$00
+	dc.b	$00,$38,$38,$00,$00,$38,$18,$30
+	dc.b	$0E,$1C,$38,$70,$38,$1C,$0E,$00
+	dc.b	$00,$7C,$7C,$00,$7C,$7C,$00,$00
+	dc.b	$E0,$70,$38,$1C,$38,$70,$E0,$00
+	dc.b	$78,$FC,$CC,$18,$30,$00,$30,$00
+	dc.b	$78,$84,$B4,$CC,$B8,$80,$7C,$00
+	dc.b	$78,$FC,$CC,$FC,$FC,$CC,$CC,$00
+	dc.b	$F8,$FC,$CC,$F8,$CC,$FC,$F8,$00
+	dc.b	$78,$FC,$CC,$C0,$CC,$FC,$78,$00
+	dc.b	$F8,$FC,$CC,$CC,$CC,$FC,$F8,$00
+	dc.b	$FC,$FC,$C0,$F8,$C0,$FC,$FC,$00
+	dc.b	$FC,$FC,$C0,$F8,$F8,$C0,$C0,$00
+	dc.b	$78,$FC,$C0,$DC,$CC,$FC,$78,$00
+	dc.b	$CC,$CC,$CC,$FC,$FC,$CC,$CC,$00
+	dc.b	$FC,$FC,$30,$30,$30,$FC,$FC,$00
+	dc.b	$0C,$0C,$0C,$0C,$CC,$FC,$78,$00
+	dc.b	$CC,$DC,$F8,$F0,$F8,$DC,$CC,$00
+	dc.b	$C0,$C0,$C0,$C0,$C0,$FC,$FC,$00
+	dc.b	$C6,$EE,$D6,$C6,$C6,$C6,$C6,$00
+	dc.b	$CC,$CC,$EC,$FC,$DC,$CC,$CC,$00
+	dc.b	$78,$FC,$CC,$CC,$CC,$FC,$78,$00
+	dc.b	$F8,$FC,$CC,$FC,$F8,$C0,$C0,$00
+	dc.b	$78,$FC,$C4,$C4,$D4,$C8,$74,$00
+	dc.b	$F8,$FC,$CC,$FC,$F8,$DC,$CC,$00
+	dc.b	$78,$FC,$C0,$78,$0C,$FC,$78,$00
+	dc.b	$FC,$FC,$30,$30,$30,$30,$30,$00
+	dc.b	$CC,$CC,$CC,$CC,$CC,$FC,$78,$00
+	dc.b	$CC,$CC,$CC,$CC,$CC,$78,$30,$00
+	dc.b	$C6,$C6,$C6,$D6,$D6,$EE,$C6,$00
+	dc.b	$CC,$CC,$78,$30,$78,$CC,$CC,$00
+	dc.b	$CC,$CC,$CC,$78,$30,$30,$30,$00
+	dc.b	$FC,$FC,$18,$30,$60,$FC,$FC,$00
+	dc.b	$F8,$F8,$C0,$C0,$C0,$F8,$F8,$00
+	dc.b	$C0,$E0,$70,$38,$1C,$0E,$06,$00
+	dc.b	$F8,$F8,$18,$18,$18,$F8,$F8,$00
+	dc.b	$30,$78,$FC,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$FF,$FF
+	dc.b	$60,$30,$18,$0C,$00,$00,$00,$00
+	dc.b	$00,$00,$78,$0C,$7C,$CC,$7C,$00
+	dc.b	$C0,$C0,$F8,$CC,$CC,$CC,$F8,$00
+	dc.b	$00,$00,$78,$CC,$C0,$CC,$78,$00
+	dc.b	$0C,$0C,$7C,$CC,$CC,$CC,$7C,$00
+	dc.b	$00,$00,$78,$CC,$F8,$C0,$78,$00
+	dc.b	$38,$6C,$60,$F8,$60,$60,$60,$00
+	dc.b	$00,$00,$78,$CC,$CC,$7C,$0C,$78
+	dc.b	$C0,$C0,$F8,$CC,$CC,$CC,$CC,$00
+	dc.b	$00,$30,$00,$30,$30,$30,$30,$00
+	dc.b	$0C,$00,$0C,$0C,$0C,$CC,$CC,$78
+	dc.b	$C0,$C0,$CC,$D8,$F0,$D8,$CC,$00
+	dc.b	$70,$30,$30,$30,$30,$30,$78,$00
+	dc.b	$00,$00,$FC,$D6,$D6,$D6,$D6,$00
+	dc.b	$00,$00,$F8,$CC,$CC,$CC,$CC,$00
+	dc.b	$00,$00,$78,$CC,$CC,$CC,$78,$00
+	dc.b	$00,$00,$F8,$CC,$CC,$F8,$C0,$C0
+	dc.b	$00,$00,$7C,$CC,$CC,$7C,$0C,$0C
+	dc.b	$00,$00,$F8,$CC,$C0,$C0,$C0,$00
+	dc.b	$00,$00,$78,$C0,$78,$0C,$78,$00
+	dc.b	$60,$60,$F8,$60,$60,$6C,$38,$00
+	dc.b	$00,$00,$CC,$CC,$CC,$CC,$7C,$00
+	dc.b	$00,$00,$CC,$CC,$CC,$78,$30,$00
+	dc.b	$00,$00,$D6,$D6,$D6,$D6,$7E,$00
+	dc.b	$00,$00,$CC,$78,$30,$78,$CC,$00
+	dc.b	$00,$00,$CC,$CC,$CC,$7C,$0C,$78
+	dc.b	$00,$00,$FC,$18,$30,$60,$FC,$00
+	dc.b	$38,$78,$60,$E0,$60,$78,$38,$00
+	dc.b	$30,$30,$30,$30,$30,$30,$30,$30
+	dc.b	$70,$78,$18,$1C,$18,$78,$70,$00
+	dc.b	$00,$00,$14,$28,$00,$00,$00,$00
+	dc.b	$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+
+smilesprites
+	dc.b	$00,$BB,$BB,$00,$0B,$BB,$BB,$B0	;sprite definition data
+	dc.b	$BB,$8B,$B8,$BB,$BB,$BB,$BB,$BB
+	dc.b	$B8,$BB,$BB,$8B,$BB,$88,$88,$BB
+	dc.b	$0B,$BB,$BB,$B0,$00,$BB,$BB,$00	;8x8
+
+	dc.b	$00,$00,$0B,$BB,$00,$0B,$BB,$BB
+	dc.b	$00,$BB,$BB,$BB,$0B,$B8,$8B,$BB
+	dc.b	$0B,$B8,$8B,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$88,$BB,$BB
+	dc.b	$BB,$B8,$8B,$BB,$0B,$BB,$88,$88
+	dc.b	$0B,$BB,$BB,$88,$00,$BB,$BB,$BB
+	dc.b	$00,$0B,$BB,$BB,$00,$00,$0B,$BB
+	dc.b	$BB,$B0,$00,$00,$BB,$BB,$B0,$00
+	dc.b	$BB,$BB,$BB,$00,$BB,$B8,$8B,$B0
+	dc.b	$BB,$B8,$8B,$B0,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$88,$BB
+	dc.b	$BB,$B8,$8B,$BB,$88,$88,$BB,$B0
+	dc.b	$88,$BB,$BB,$B0,$BB,$BB,$BB,$00
+	dc.b	$BB,$BB,$B0,$00,$BB,$B0,$00,$00	;16x16
+
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$BB
+	dc.b	$00,$00,$BB,$BB,$00,$0B,$BB,$BB
+	dc.b	$00,$BB,$BB,$88,$00,$BB,$B8,$88
+	dc.b	$0B,$BB,$B8,$88,$0B,$BB,$BB,$88
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$B8,$8B,$BB,$BB,$B8,$88,$BB
+	dc.b	$0B,$BB,$88,$88,$0B,$BB,$B8,$88
+	dc.b	$00,$BB,$BB,$B8,$00,$BB,$BB,$BB
+	dc.b	$00,$0B,$BB,$BB,$00,$00,$BB,$BB
+	dc.b	$00,$00,$00,$BB,$00,$00,$00,$00
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$8B,$BB,$BB,$B8
+	dc.b	$8B,$BB,$BB,$B8,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$88,$88,$88,$88
+	dc.b	$88,$88,$88,$88,$B8,$88,$88,$8B
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$00,$00,$00,$00,$BB,$00,$00,$00
+	dc.b	$BB,$BB,$00,$00,$BB,$BB,$B0,$00
+	dc.b	$88,$BB,$BB,$00,$88,$8B,$BB,$00
+	dc.b	$88,$8B,$BB,$B0,$88,$BB,$BB,$B0
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$B8,$8B,$BB,$BB,$88,$8B,$BB
+	dc.b	$88,$88,$BB,$B0,$88,$8B,$BB,$B0
+	dc.b	$8B,$BB,$BB,$00,$BB,$BB,$BB,$00
+	dc.b	$BB,$BB,$B0,$00,$BB,$BB,$00,$00
+	dc.b	$BB,$00,$00,$00,$00,$00,$00,$00	;24x24
+
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$BB
+	dc.b	$00,$00,$0B,$BB,$00,$00,$BB,$BB
+	dc.b	$00,$0B,$BB,$B8,$00,$0B,$BB,$88
+	dc.b	$00,$BB,$BB,$88,$00,$BB,$BB,$88
+	dc.b	$0B,$BB,$BB,$B8,$0B,$BB,$BB,$BB
+	dc.b	$0B,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$88,$8B
+	dc.b	$BB,$BB,$88,$88,$0B,$BB,$B8,$88
+	dc.b	$0B,$BB,$BB,$88,$0B,$BB,$BB,$B8
+	dc.b	$00,$BB,$BB,$BB,$00,$BB,$BB,$BB
+	dc.b	$00,$0B,$BB,$BB,$00,$0B,$BB,$BB
+	dc.b	$00,$00,$BB,$BB,$00,$00,$0B,$BB
+	dc.b	$00,$00,$00,$BB,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$0B,$BB,$00,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$88,$BB,$BB,$BB,$88,$8B,$BB,$BB
+	dc.b	$88,$8B,$BB,$BB,$88,$8B,$BB,$BB
+	dc.b	$88,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$8B,$BB,$BB,$BB
+	dc.b	$88,$BB,$BB,$BB,$88,$88,$8B,$BB
+	dc.b	$88,$88,$88,$88,$B8,$88,$88,$88
+	dc.b	$BB,$B8,$88,$88,$BB,$BB,$B8,$88
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$00,$BB,$BB,$BB,$00,$00,$0B,$BB
+	dc.b	$BB,$B0,$00,$00,$BB,$BB,$BB,$00
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$88,$BB,$BB,$B8,$88
+	dc.b	$BB,$BB,$B8,$88,$BB,$BB,$B8,$88
+	dc.b	$BB,$BB,$BB,$88,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$B8
+	dc.b	$BB,$BB,$BB,$88,$BB,$B8,$88,$88
+	dc.b	$88,$88,$88,$88,$88,$88,$88,$8B
+	dc.b	$88,$88,$8B,$BB,$88,$8B,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$00,$BB,$B0,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$BB,$00,$00,$00
+	dc.b	$BB,$B0,$00,$00,$BB,$BB,$00,$00
+	dc.b	$8B,$BB,$B0,$00,$88,$BB,$B0,$00
+	dc.b	$88,$BB,$BB,$00,$88,$BB,$BB,$00
+	dc.b	$8B,$BB,$BB,$B0,$BB,$BB,$BB,$B0
+	dc.b	$BB,$BB,$BB,$B0,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$B8,$88,$BB,$BB
+	dc.b	$88,$88,$BB,$BB,$88,$8B,$BB,$B0
+	dc.b	$88,$BB,$BB,$B0,$8B,$BB,$BB,$B0
+	dc.b	$BB,$BB,$BB,$00,$BB,$BB,$BB,$00
+	dc.b	$BB,$BB,$B0,$00,$BB,$BB,$B0,$00
+	dc.b	$BB,$BB,$00,$00,$BB,$B0,$00,$00
+	dc.b	$BB,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00	;32x32
+endsmiles
+
+z80data
+	dc.b	$F3,$C3,$09,$00,$00,$00,$00,$00
+	dc.b	$00,$31,$00,$20,$11,$00,$40,$CD
+	dc.b	$F3,$00,$21,$7A,$00,$06,$28,$CD
+	dc.b	$E5,$00,$3A,$07,$00,$A7,$CA,$1A
+	dc.b	$00,$AF,$32,$07,$00,$32,$08,$00
+	dc.b	$3A,$05,$00,$FE,$0C,$38,$01,$AF
+	dc.b	$87,$4F,$06,$00,$21,$62,$00,$09
+	dc.b	$3A,$06,$00,$87,$87,$87,$4E,$23
+	dc.b	$86,$47,$CD,$CE,$00,$21,$CA,$00
+	dc.b	$CD,$E3,$00,$3A,$07,$00,$A7,$C2
+	dc.b	$59,$00,$3A,$08,$00,$A7,$CA,$4B
+	dc.b	$00,$21,$CC,$00,$CD,$E3,$00,$C3
+	dc.b	$1A,$00,$69,$02,$8D,$02,$B4,$02
+	dc.b	$DD,$02,$09,$03,$37,$03,$68,$03
+	dc.b	$9C,$03,$D3,$03,$0D,$04,$4B,$04
+	dc.b	$8C,$04,$22,$00,$27,$00,$28,$00
+	dc.b	$28,$01,$28,$02,$28,$04,$28,$05
+	dc.b	$28,$06,$2B,$00,$30,$71,$34,$0D
+	dc.b	$38,$33,$3C,$01,$40,$23,$44,$2D
+	dc.b	$48,$26,$4C,$00,$50,$5F,$54,$99
+	dc.b	$58,$5F,$5C,$94,$60,$05,$64,$05
+	dc.b	$68,$05,$6C,$07,$70,$02,$74,$02
+	dc.b	$78,$02,$7C,$02,$80,$11,$84,$11
+	dc.b	$88,$11,$8C,$A6,$90,$00,$94,$00
+	dc.b	$98,$00,$9C,$00,$B0,$32,$B4,$C0
+	dc.b	$28,$00,$28,$F0,$28,$00,$CD,$F3
+	dc.b	$00,$EB,$36,$A4,$2C,$70,$2D,$EB
+	dc.b	$CD,$F3,$00,$EB,$36,$A0,$2C,$71
+	dc.b	$2D,$EB,$C9,$06,$01,$0E,$FF,$CD
+	dc.b	$F3,$00,$ED,$A0,$ED,$A0,$1D,$1D
+	dc.b	$10,$F5,$C9,$1A,$A7,$FA,$F3,$00
+	dc.b	$C9
+z80end
+
+
+	END
+

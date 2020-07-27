@@ -1,0 +1,17 @@
+Description of disk contents
+
+This file
+packing.lst
+
+Scaler object file 
+scaler.zip
+
+Binary image of demo
+scale.img - burn this on eproms to see scaling in action
+
+
+main.68k - Scaler source
+ 
+Documentation
+manual.wrd - Scaling manual in MS Word format
+

@@ -1,0 +1,116 @@
+MAKE Version 3.6  Copyright (c) 1992 Borland International
+
+Available memory 7282176 bytes
+
+        tasm -zi scale
+Turbo Assembler  Version 3.1  Copyright (c) 1988, 1992 Borland International
+
+Assembling file:   scale.ASM
+**Error** sin.asm(3) Illegal instruction
+**Error** sin.asm(4) Illegal instruction
+**Error** sin.asm(5) Illegal instruction
+**Error** sin.asm(6) Illegal instruction
+**Error** sin.asm(7) Illegal instruction
+**Error** sin.asm(8) Illegal instruction
+**Error** sin.asm(9) Illegal instruction
+**Error** sin.asm(10) Illegal instruction
+**Error** sin.asm(11) Illegal instruction
+**Error** sin.asm(12) Illegal instruction
+**Error** sin.asm(13) Illegal instruction
+**Error** sin.asm(14) Illegal instruction
+**Error** sin.asm(15) Illegal instruction
+**Error** sin.asm(16) Illegal instruction
+**Error** sin.asm(17) Illegal instruction
+**Error** sin.asm(18) Illegal instruction
+**Error** sin.asm(19) Illegal instruction
+**Error** sin.asm(20) Illegal instruction
+**Error** sin.asm(21) Illegal instruction
+**Error** sin.asm(22) Illegal instruction
+**Error** sin.asm(23) Illegal instruction
+**Error** sin.asm(25) Illegal instruction
+**Error** sin.asm(26) Illegal instruction
+**Error** sin.asm(27) Illegal instruction
+**Error** sin.asm(28) Illegal instruction
+**Error** sin.asm(29) Illegal instruction
+**Error** sin.asm(30) Illegal instruction
+**Error** sin.asm(31) Illegal instruction
+**Error** sin.asm(32) Illegal instruction
+**Error** sin.asm(33) Illegal instruction
+**Error** sin.asm(34) Illegal instruction
+**Error** sin.asm(35) Illegal instruction
+**Error** sin.asm(36) Illegal instruction
+**Error** sin.asm(37) Illegal instruction
+**Error** sin.asm(38) Illegal instruction
+**Error** sin.asm(39) Illegal instruction
+**Error** sin.asm(40) Illegal instruction
+**Error** sin.asm(41) Illegal instruction
+**Error** sin.asm(42) Illegal instruction
+**Error** sin.asm(43) Illegal instruction
+**Error** sin.asm(44) Illegal instruction
+**Error** sin.asm(45) Illegal instruction
+**Error** sin.asm(47) Illegal instruction
+**Error** sin.asm(48) Illegal instruction
+**Error** sin.asm(49) Illegal instruction
+**Error** sin.asm(50) Illegal instruction
+**Error** sin.asm(51) Illegal instruction
+**Error** sin.asm(52) Illegal instruction
+**Error** sin.asm(53) Illegal instruction
+**Error** sin.asm(54) Illegal instruction
+**Error** sin.asm(55) Illegal instruction
+**Error** sin.asm(56) Illegal instruction
+**Error** sin.asm(57) Illegal instruction
+**Error** sin.asm(58) Illegal instruction
+**Error** sin.asm(59) Illegal instruction
+**Error** sin.asm(60) Illegal instruction
+**Error** sin.asm(61) Illegal instruction
+**Error** sin.asm(62) Illegal instruction
+**Error** sin.asm(63) Illegal instruction
+**Error** sin.asm(64) Illegal instruction
+**Error** sin.asm(65) Illegal instruction
+**Error** sin.asm(66) Illegal instruction
+**Error** sin.asm(67) Illegal instruction
+**Error** sin.asm(68) Illegal instruction
+**Error** sin.asm(69) Illegal instruction
+**Error** sin.asm(70) Illegal instruction
+**Error** sin.asm(71) Illegal instruction
+**Error** sin.asm(73) Illegal instruction
+**Error** sin.asm(74) Illegal instruction
+**Error** sin.asm(75) Illegal instruction
+**Error** sin.asm(76) Illegal instruction
+**Error** sin.asm(77) Illegal instruction
+**Error** sin.asm(78) Illegal instruction
+**Error** sin.asm(79) Illegal instruction
+**Error** sin.asm(80) Illegal instruction
+**Error** sin.asm(81) Illegal instruction
+**Error** sin.asm(82) Illegal instruction
+**Error** sin.asm(83) Illegal instruction
+**Error** sin.asm(84) Illegal instruction
+**Error** sin.asm(85) Illegal instruction
+**Error** sin.asm(86) Illegal instruction
+**Error** sin.asm(87) Illegal instruction
+**Error** sin.asm(88) Illegal instruction
+**Error** sin.asm(89) Illegal instruction
+**Error** sin.asm(90) Illegal instruction
+**Error** sin.asm(91) Illegal instruction
+**Error** sin.asm(92) Illegal instruction
+**Error** sin.asm(93) Illegal instruction
+**Error** sin.asm(94) Illegal instruction
+**Error** sin.asm(95) Illegal instruction
+**Error** sin.asm(96) Illegal instruction
+**Error** sin.asm(97) Illegal instruction
+**Error** sin.asm(98) Illegal instruction
+**Error** sin.asm(99) Illegal instruction
+**Error** sin.asm(101) Illegal instruction
+**Error** sin.asm(102) Illegal instruction
+**Error** sin.asm(103) Illegal instruction
+**Error** sin.asm(104) Illegal instruction
+**Error** sin.asm(105) Illegal instruction
+**Error** sin.asm(106) Illegal instruction
+**Error** sin.asm(107) Too many errors or warnings
+Error messages:    101
+Warning messages:  None
+Passes:            1
+Remaining memory:  85k
+
+
+** error 1 ** deleting scale.com

@@ -1,0 +1,50 @@
+
+				Level 5 Monsters
+
+1. Alien Soldiers
+	Type: 1
+	Attacks: Laser Rifle
+            Attack Range: Close or Far
+	Damage: 15 per hit from afar, 30 per hit from close range
+	Speed: fast
+	# shots to kill: 12 each
+    BOSS: Alien Leader
+	Type: 1
+	Attacks: Laser Cannon
+	Attack Range: Far
+	Damage: 40
+            Speed: medium-fast
+	# shots to kill: 25 to belt buckle
+
+2. Giant Robots
+	Type: 1
+	Attacks: Guns or Hands
+	Attack Range: Close or Far
+	Damage: 10 points per gun burst, 20 per punch
+	Speed: Guns:Fast  Hands:Slow
+	# shots to kill: 5 to each of the 2 guns, 10 to each arm
+
+    BOSS: Giant Transformer Robot
+	Type: 1
+	Attacks: 4 Guns and 2 Hands, Head
+	Attack Range: Close or Far
+	Damage: 10 points per gun burst, 25 per punch, 10 for Head
+	Speed: Slow
+	# shots to kill: 10 to each gun, 20 to each arm,  20 for Head
+
+3. Obstacles
+	Type: Many
+	Attacks: Many
+	Attack Range: Close
+	Damage: 25 per hit
+	Speed: Immediate
+	# shots to kill: n/a
+
+   LEVEL BOSS: Giant Robot Brain Creature
+	Type: 1
+	Attacks: 5 missles from each hand, 2 guns in Torso, Brainwaves
+	Attack Range: Very Far
+	Damage: 10 points per missle, 10 per gun burst, 25 per brainwave.
+	Speed: Slow
+	# shots to kill: 15 to each elbow, 15 to shoulders, 10 to legs, 20 to neck,
+            40 to glass dome, and 5 to Brain.

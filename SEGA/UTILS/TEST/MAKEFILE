@@ -1,0 +1,29 @@
+
+
+.s.obj:
+	snasm68k /g /o l+,v+ /k /l /w $<,$*.obj
+
+test.cpe: vectors.obj test.obj segalogo.obj segahdr.obj \
+	sprites.obj dma.obj general.obj maps.obj
+	snlink /m /o 0 /x $200 @test.lnk,test.cpe,test.sym,test.map
+
+vectors.obj: vectors.s globals.i macros.i equates.i
+
+segahdr.obj: segahdr.s
+
+test.obj: test.s globals.i macros.i equates.i gator.fpa endlvl1.fpc
+
+segalogo.obj: segalogo.s globals.i macros.i equates.i
+
+sprites.obj: sprites.s macros.i equates.i 
+
+dma.obj: dma.s macros.i equates.i
+
+maps.obj: maps.s macros.i equates.i
+
+general.obj: general.s macros.i equates.i
+
+gator.fpa: gator.inp
+	anm2fpa /l /p1 /o gator.inp gator.fpa
+
+

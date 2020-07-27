@@ -1,0 +1,9 @@
+
+ Start  Stop   Length Name               Class
+
+ 00000H 00B5FH 00B60H DATAS              FARDATA
+ 00B60H 00C3AH 000DBH TCODE              CODE
+
+Program entry point at 00B6:0000
+Warning: No stack
+

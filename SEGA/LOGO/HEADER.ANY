@@ -1,0 +1,27 @@
+;*************************************************************************
+;*                     HEADER DEFINE SUBSTITUTIONS                       *
+;*************************************************************************
+
+SegaCompany	equ	true	;TRUE if developed for SEGA
+ExternalRAM	equ	false	;TRUE if the cartridge expects EXTERNAL RAM
+Modem		equ	false	;TRUE if the cartridge expects MODEM
+
+#DEFINE COMPANY 'SEGA'
+#DEFINE YEAR '1992'
+#DEFINE MONTH '03 '
+#DEFINE USATITLE 'SEGA LOGO AND HARDWARE DEMONSTRATION            '
+#DEFINE JAPANTITLE 'SEGA LOGO AND HARDWARE DEMONSTRATION            '
+#DEFINE CARTRIDGE 'AI'
+#DEFINE PRODUCT '0000000'
+#DEFINE VERSION '00'
+#DEFINE CONTROLLERS 'J               '
+#DEFINE EXTRAMSIZE EXTSIZE+EXTNOTCLEARED+EXTODDBYTES
+#DEFINE EXTRAMTYPE EXTTYPE+EXTSRAM
+#DEFINE MODEMNUM '00'
+#DEFINE MODEMVER '0'
+#DEFINE MEMO '                                        '
+#DEFINE COMPATIBILITY 'JUE             '
+
+CHECKSUM	equ	0	;sum of words from $200 to ROMEND
+ROMEND		equ	$fffff	;last address in ROM
+

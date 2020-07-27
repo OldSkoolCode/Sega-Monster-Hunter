@@ -1,0 +1,72 @@
+;*************************************************************************
+;*                              VARIABLES                                *
+;*************************************************************************
+
+BigBuffer	equ	$FFFF0000	;16K available, but only up to 2K used
+
+VDPSlaves	equ	$FFFF8000	;copy of contents of all 24 VDP registers
+VDP_ModeSet1	equ	$FFFF8001	;note that the register labels are on BYTE boundaries
+VDP_ModeSet2	equ	$FFFF8003
+VDP_PatternA	equ	$FFFF8005
+VDP_Window	equ	$FFFF8007
+VDP_PatternB	equ	$FFFF8009
+VDP_SpriteAttr	equ	$FFFF800B
+VDP_Reg6	equ	$FFFF800D
+VDP_BackCol	equ	$FFFF800F
+VDP_Reg8	equ	$FFFF8011
+VDP_Reg9	equ	$FFFF8013
+VDP_HIntReg	equ	$FFFF8015
+VDP_ModeSet3	equ	$FFFF8017
+VDP_ModeSet4	equ	$FFFF8019
+VDP_HScroll	equ	$FFFF801B
+VDP_Reg14	equ	$FFFF801D
+VDP_AutoInc	equ	$FFFF801F
+VDP_ScrollSize	equ	$FFFF8021
+VDP_WindowHPos	equ	$FFFF8023
+VDP_WindowVPos	equ	$FFFF8025
+DMASlaves	equ	$FFFF8026	;the 5 DMA registers are included (but not normally set with other regs)
+VDP_DMALenLo	equ	$FFFF8027
+VDP_DMALenHi	equ	$FFFF8029
+VDP_DMASrcLo	equ	$FFFF802B
+VDP_DMASrcMid	equ	$FFFF802D
+VDP_DMASrcHi	equ	$FFFF802F
+
+VDPLock		equ	$FFFF8030
+Z80Lock		equ	$FFFF8031
+NewScreen	equ	$FFFF8032
+CurScreen	equ	$FFFF8034
+Poll_Address	equ	$FFFF8036
+GPTimer		equ	$FFFF803A
+FlyBackFlag	equ	$FFFF803C
+KeyHit		equ	$FFFF803D
+KeyTab1		equ	$FFFF803E
+CellMapCols	equ	$FFFF804E
+CellMapRows	equ	$FFFF8050
+DMATemp		equ	$FFFF8052
+
+PalBuffer	equ	$FFFF8056
+
+selected	equ	$FFFF80D6
+chrattr		equ	$FFFF80D8
+scrbase		equ	$FFFF80DA
+twinklecol	equ	$FFFF80DC
+twinklech	equ	$FFFF80DE
+SpriteQtys	equ	$FFFF80E0
+
+scrollmode	equ	$FFFF80E4
+scrolltime	equ	$FFFF80E6
+
+windowmode	equ	$FFFF80E8
+windowtime	equ	$FFFF80EA
+
+rand		equ	$FFFF80EC
+columnaddr	equ	$FFFF80F4
+curheight	equ	$FFFF80F6
+scrollpos	equ	$FFFF80F8
+scrollspeed	equ	$FFFF80FA
+controltime	equ	$FFFF80FC
+
+playing		equ	$FFFF80FE
+
+
+

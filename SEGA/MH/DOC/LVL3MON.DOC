@@ -1,0 +1,55 @@
+
+				Level 3 Monsters
+
+1. Piranhas and Electric Eels
+	Type: 2
+	Attacks: Piranhas Bite, Eels Zap with tail 
+            Attack Range: Close
+	Damage: Piranhas:4  Eels:7
+	Speed: fast
+	# shots to kill: Piranhas:2  Eels:4
+    BOSS: Giant Blowfish
+	Type: 1
+	Attacks: Shoots poison quills (10 at a time)
+	Attack Range: Far
+	Damage: 5 points per quill
+            Speed: Slow
+	# shots to kill: 15 to each gill
+
+2. Sharks
+	Type: 1
+	Attacks: Bite
+	Attack Range: Close
+	Damage: 10 points per hit.
+	Speed: Very Fast
+	# shots to kill: 5
+    BOSS: Russian Sub
+	Type: 1
+	Attacks: Torpedos
+	Attack Range: Far
+	Damage: 20 points per hit
+	Speed: Sub:Slow  Torpedos:Very Fast
+	# shots to kill: 40 to torpedos
+
+3. Pirate Skeletons
+	Type: 2
+	Attacks: One uses cutlass, other throws daggers
+	Attack Range: Close for cutlass, Far for daggers
+	Damage: 12 per hit
+	Speed: Fast
+	# shots to kill: 7
+   BOSS: Ghost Captain of the Pirates
+	Type: 1
+	Attacks: Rapier
+	Attack Range: Close
+	Damage: 25 
+	Speed: Medium-Slow
+	#: shots to kill: Can't be killed. Must be tricked.
+  
+    LEVEL BOSS: Giant Squid
+	Type: 1
+	Attacks: 8 Tentacles
+	Attack Range: Very Far
+	Damage: 10 per tentacle. 30 if wrapped in tentacle.
+	Speed: Squid doesn't move. Tentacles: Very Fast
+	# shots to kill: 20 shots to each Tentacle. 30 shots to eye.

@@ -1,0 +1,63 @@
+
+# $Log: makefile_v $
+# Revision 1.2  1993/06/07  19:57:56  KENH
+# *** empty log message ***
+#
+# Revision 1.1  1993/04/29  13:50:23  KENH
+# Initial revision
+#
+
+.s.obj:
+	snasm68k /g /o l+,v+ /k /l /w $<,$*.obj
+
+mh.cpe: vectors.obj mh.obj segalogo.obj segahdr.obj maps.obj tad_drv.obj \
+	sprites.obj scale.obj scaler.obj dma.obj ai.obj general.obj\
+	display.obj sound.obj xpndlzss.obj opening.obj endlvls.obj \
+	lvl5graf.obj lvl5map.obj lvl2graf.obj lvl2map.obj lvl1graf.obj\
+	lvl1map.obj lvl3map.obj lvl3graf.obj
+	snlink /m /o 0 /x $200 @mh.lnk,mh.cpe,mh.sym,mh.map
+
+#lvl3graf.obj lvl3map.obj lvl4graf.obj\
+#	lvl4map.obj
+
+vectors.obj: vectors.s globals.i macros.i equates.i
+
+segahdr.obj: segahdr.s
+
+mh.obj:	mh.s globals.i macros.i equates.i sound.i soundeqs.i title.fpc
+
+segalogo.obj: segalogo.s globals.i macros.i equates.i
+
+maps.obj: maps.s macros.i equates.i border.fpc 
+	
+tad_drv.obj: tad_drv.s macros.i equates.i
+
+sprites.obj: sprites.s crossh.bin macros.i equates.i sidespr.bin globals.i\
+		radarblp.bin explos.fpa zlate.s hbox.bin abox.bin\
+		redcross.bin bullet.fpa crossh.fpa
+
+opening.obj: macros.i equates.i cockpita.fpc cockpitb.fpc bill.fpa \
+		marge.fpa planet1b.fpa planet2b.fpa planet3b.fpa \
+		planet4b.fpa planet5b.fpa
+
+scale.obj: scale.s macros.i equates.i 
+
+dma.obj: dma.s macros.i equates.i
+
+ai.obj: ai.s macros.i equates.i
+
+scaler.obj: scaler.s equates.i macros.i
+
+general.obj: general.s macros.i equates.i
+
+display.obj: display.s macros.i equates.i
+
+sound.obj: sound.s gems.s dbank.asm mbank.asm pbank.asm sbank.asm z80.asm
+
+sndnames.s: dbank.asm
+	sndnames
+
+soundeqs.i: dbank.asm
+	soundeqs
+
+endlvls.obj: macros.i equates.i

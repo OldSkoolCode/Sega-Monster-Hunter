@@ -1,0 +1,24 @@
+
+
+.s.obj:
+	snasm68k /g /o l+,v+ /k /l /w $<,$*.obj
+
+test.cpe: vectors.obj test.obj segahdr.obj \
+	dma.obj puts.obj general.obj maps.obj
+	snlink /m /o 0 /x $200 @test.lnk,test.cpe,test.sym,test.map
+
+vectors.obj: vectors.s globals.i macros.i equates.i
+
+segahdr.obj: segahdr.s
+
+test.obj: test.s globals.i macros.i equates.i title.fpc
+
+dma.obj: dma.s macros.i equates.i
+
+maps.obj: maps.s macros.i equates.i
+
+general.obj: general.s macros.i equates.i
+
+title.fpc: title.gmp
+	cvtsce /s64 /w40 /p0 title.gmp title.fpc
+

@@ -1,0 +1,246 @@
+*
+*	File:		LIB.A
+*
+*	Contains:	This file contains the source for the routines defined
+*		in lib.h.
+*
+*	Written by:	Burt Sloane & Randel B. Reiss of Technopop
+*
+*	Copyright:	 1990 by Sega of America, Inc., all rights reserved.
+*
+*	Change History:
+*
+*	To Do:
+*
+*
+* Support library for C
+*
+*	OPT	E,CASE
+	section	.text
+	XDEF	_eraseVRAM
+	XDEF	_eraseVSRAM
+	XDEF	_eraseCRAM
+	XDEF	_loadchars
+	XDEF	___fillVRAMword
+	XDEF	___fillVRAMbyte
+	XDEF	___copy2VRAM
+	XDEF	___loadScroll
+	XDEF	_loadPalette
+	XDEF	_readCtrlA
+	XDEF	_readCtrlB
+*
+VDPdata		EQU	$c00000
+VDPcontrol	EQU	$c00004
+*
+*
+* erase main VDP VRAM
+_eraseVRAM
+	move.l	#$40000000,VDPcontrol	* addr 0
+	move.w	#$7fff,d0		* 32k - 1 words
+eraseVRAMloop
+	move.w	#$0,VDPdata
+	dbra	d0,eraseVRAMloop
+	rts
+*
+* erase VSRAM
+_eraseVSRAM
+	move.l	#$40000010,VDPcontrol	* addr 0
+	move.w	#39,d0			* 40 - 1 words
+eraseVSRAMloop
+	move.w	#$0,VDPdata
+	dbra	d0,eraseVSRAMloop
+	rts
+*
+* erase CRAM
+_eraseCRAM
+ 	move.l	#$c0000000,VDPcontrol	* addr 0
+	move.w	#63,d0			* 64 - 1 words
+eraseCRAMloop
+	move.w	#$0,VDPdata
+	dbra	d0,eraseCRAMloop
+	rts
+****************************************************************
+*
+* load character data
+_loadchars
+	move.l	8(a7),d0		* which char
+* if a char is 0abc.defg.hijk in binary, its address in VRAM is:
+*  01cd.efgh.ijk0.0000.0000.0000.0000.00ab
+	lsl.l	#5+2,d0		* 0000.0000.0000.00ab.cdef.ghij.k000.0000
+	lsr.w	#2,d0		* 0000.0000.0000.00ab.00cd.efgh.ijk0.0000
+	swap	d0		* 00cd.efgh.ijk0.0000.0000.0000.0000.00ab
+	bset	#30,d0		* 01cd.efgh.ijk0.0000.0000.0000.0000.00ab
+	move.l	d0,VDPcontrol		* point the VDP at it
+*
+	move.l	12(a7),d1		* how many chars
+	lsl.l	#3,d1			* * 8 = longs
+	move.l	4(a7),a0		* get data ptr
+loadcharsloop
+	move.l	(a0)+,VDPdata
+	dbra	d1,loadcharsloop
+	rts
+****************************************************************
+*
+* fill VRAM with a word value
+**** warning: assumes the VDP address register is already set up
+___fillVRAMword
+	move.l	4(a7),d0		* data
+	move.l	8(a7),d1		* num words
+	subq	#1,d1			* -1 for dbra
+fillWloop
+	move.w	d0,VDPdata		* write data
+	dbra	d1,fillWloop
+	rts
+*
+* fill VRAM with a byte value
+**** warning: assumes the VDP address register is already set up
+___fillVRAMbyte
+	move.l	4(a7),d0		* data
+	move.l	8(a7),d1		* num bytes
+	subq	#1,d1			* -1 for dbra
+fillBloop
+	move.b	d0,VDPdata		* write data
+	dbra	d1,fillBloop
+	rts
+*
+* copy data into VRAM
+**** warning: assumes the VDP address register is already set up
+___copy2VRAM
+	move.l	4(a7),a0		* data ptr
+	move.l	8(a7),d0		* num bytes
+	subq	#1,d0			* -1 for dbra
+copyloop
+	move.w	(a0)+,VDPdata		* write data
+	dbra	d0,copyloop
+	rts
+****************************************************************
+*
+* load scroll data
+___loadScroll
+	link	a6,#0
+	move.l	d2,-(a7)		* save d2
+	move.l	8(a6),a1		* dest VDP addr (word)
+	move.l	12(a6),a0		* data ptr
+	move.l	20(a6),d2		* dataV
+	subq	#1,d2			* -1 for dbra	
+	move.l	24(a6),d1		* get scrollwidth
+	asl.l	#1,d1			* *2 = bytes
+*
+lslineloadloop
+* a1 has the current VRAM address, d1 is the scrollwidth in bytes
+* if the addr is abcd.efgh.ijkl.mnop in binary, its address in VRAM is:
+*  01cd.efgh.ijkl.mnop.0000.0000.0000.00ab
+	move.l	a1,d0
+	lsl.l	#2,d0		* 0000.0000.0000.00ab.cdef.ghij.klmn.op00
+	lsr.w	#2,d0		* 0000.0000.0000.00ab.00cd.efgh.ijkl.mnop
+	swap	d0		* 00cd.efgh.ijkl.mnop.0000.0000.0000.00ab
+	bset	#30,d0		* 01cd.efgh.ijkl.mnop.0000.0000.0000.00ab
+	and.l	#$7fff0003,d0		* make the 0s really 0s
+	move.l	d0,VDPcontrol		* send it
+	add.l	d1,a1			* add in scrollwidth for next iter
+*
+	move.l	16(a6),d0		* dataH
+	subq	#1,d0			* -1 for dbra
+*
+lswordloadloop
+	move.w	(a0)+,VDPdata		* move a word
+	dbra	d0,lswordloadloop
+*
+	dbra	d2,lslineloadloop
+*
+	move.l	(a7)+,d2		* restore d2
+	unlk	a6
+	rts
+****************************************************************
+*
+* fill a palette from table at data ptr
+_loadPalette
+	move.l	4(a7),a0		* ptr to palette data
+	move.l	8(a7),d0		* which palette
+	and.l	#$0003,d0		* mask out bad values
+	lsl.l	#5,d0		* 0000.0000.0000.0000.0000.0000.0cc0.0000
+	or.w	#$c000,d0	* 0000.0000.0000.0000.1100.0000.0cc0.0000
+	swap	d0		* 1100.0000.0cc0.0000.0000.0000.0000.0000
+	move.l	d0,VDPcontrol
+	move.w	#15,d0			* 16 - 1 words
+loadPaletteloop
+	move.w	(a0)+,VDPdata
+	dbra	d0,loadPaletteloop
+	rts
+****************************************************************
+*
+* readCtrlA/B reads the player 1/2 controller into D0 as follows:
+*  bit0: up
+*  bit1: down
+*  bit2: left
+*  bit3: right
+*  bit4: B
+*  bit5: C
+*  bit6: A
+*  bit7: start
+_readCtrlA
+BUSREQ	equ	$A11100
+*
+	move.w	sr,-(sp)
+	or.w	#$0700,sr
+	move.w	#$100,BUSREQ	* Z80 bus request on
+rcazz	btst.b	#0,BUSREQ
+	bne.s	rcazz
+*
+	move.b	#$40,$a10009	* set bit 6 to output
+	move.b	#$00,$a10003	* clear bit 6 output
+	move.w	#10,d1
+rcazzz
+	dbra	d1,rcazzz	* sleep to let the hardware settle
+	moveq	#0,d0		* clear d0
+	move.b	$a10003,d0	* read start & A
+	lsl.b	#2,d0		* move them into position
+	and.b	#$c0,d0		* turn off 0s
+*
+	move.b	#$40,$a10003	* set bit 6 output
+	move.w	#10,d1
+rcazzzz
+	dbra	d1,rcazzzz	* sleep to let the hardware settle
+	move.b	$a10003,d1	* read B, C, UDRL
+	and.b	#$3f,d1		* mask off 0s
+	or.b	d1,d0		* merge them
+	not.b	d0		* change sense
+	move.w	#$0,BUSREQ	* Z80 bus request off
+	move.w	(sp)+,sr
+	rts
+*
+*
+_readCtrlB
+*BUSREQ	equ	$A11100
+*
+	move.w	sr,-(sp)
+	or.w	#$0700,sr
+	move.w	#$100,BUSREQ	* Z80 bus request on
+rcbzz	btst.b	#0,BUSREQ
+	bne.s	rcbzz
+*
+	move.b	#$40,$a1000b	* set bit 6 to output
+	move.b	#$00,$a10005	* clear bit 6 output
+	move.w	#10,d1
+rcbzzz
+	dbra	d1,rcbzzz	* sleep to let the hardware settle
+	moveq	#0,d0		* clear d0
+	move.b	$a10005,d0	* read start & A
+	lsl.b	#2,d0		* move them into position
+	and.b	#$c0,d0		* turn off 0s
+*
+	move.b	#$40,$a10005	* set bit 6 output
+	move.w	#10,d1
+rcbzzzz
+	dbra	d1,rcbzzzz	* sleep to let the hardware settle
+	move.b	$a10005,d1	* read B, C, UDRL
+	and.b	#$3f,d1		* mask off 0s
+	or.b	d1,d0		* merge them
+	not.b	d0		* change sense
+	move.w	#$0,BUSREQ	* Z80 bus request off
+	move.w	(sp)+,sr
+	rts
+*
+*
+*
+	END

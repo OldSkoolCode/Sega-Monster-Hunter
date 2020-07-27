@@ -1,0 +1,1684 @@
+GEMS Documentation - Version 2.0			11/24/91
+
+For Technical Support, please call:
+
+	Recreational Brainware
+		Jonathan Miller
+		Burt Sloane
+
+	Phone:	(415) 469-9755
+	Fax:	(415) 469-8347
+
+REMEMBER TO MAKE FREQUENT BACKUPS!
+
+This documentation is mainly for the GEMS user. There is a separate
+README document for programmers in the GEMS release directory.
+
+
+0) Version 2.0 Release Notes
+==================================
+
+
+New Features
+---------------
+
+1) Digital Audio. 8-bit samples may be played back simultaneously
+with FM and PSG voices at a number of frequencies from 5.2 to 10.4
+kHz. 
+
+2) Multiple Editor Windows. It is now possible to have one of each
+kind of editor (sequence, patch, sample, modulator) open at the
+same time. A "Windows" menu allows quick selection of any of the
+currently open windows.
+
+3) Conditional Opcodes. Four new opcodes (Label, Goto, If, and
+Store) allow more complex coordination between sequences, and
+between the game code and sequences. 30 shared variables may be
+examined or set from sequences or from the 68000, and can effect
+the flow of sequences.
+
+4) Sfx Timebase. A second, fixed timebase (150 bpm) is now available
+in addition to the adjustable timebase. This allows sound effects
+to always run at the same speed, even as the music tempo is adjusted.
+
+
+Known Bugs
+--------------
+
+1) Delete
+
+In general, there is no "Are you sure?" for delete operations in the
+editors or banks. 
+
+2) Looped Samples
+
+When playing looped samples, the final section of the sample (after
+the looped section) is never heard. The looped section does work,
+however.
+
+3) File Open Widget
+
+This widget has some problems:
+
+	Sometimes when scrolling down through the directory (or
+	file) window, when you click on a specific directory, 
+	it selects the wrong entry. To minimize this problem, click
+	once on the desired entry (as opposed to immediately double
+	clicking) and make sure it doesn't scroll away on you. When
+	the correct entry is highlighted, double click (or press 
+	ENTER).
+	
+	BIG BUG: If you select a floppy drive which doesn't contain
+	a diskette, the DOS error "Drive not ready..." pops through
+	the window system. The only way to recover from this is to
+	immediately put a floppy (formatted) in the drive, close the
+	door, and press "r" for retry. To then get rid of the DOS
+	droppings on the screen, slide a window around (like a big
+	eraser.) The screen will get repainted under the window.
+
+4) Graphics Glitches
+
+There are some graphics glitches in the scroll bars and the file
+selector window. These do not impact the operation of the system,
+just the way it looks.
+
+5) No "If" Errors
+
+There is no error message when an "If" opcode is immediately followed
+by an opcode in a later tick, or an "If", "Loop", or "Label" opcode.
+The "If" has no effect in these situations.
+
+6) No "Goto" Errors
+
+There is no error message when a "Goto" jumps to undefined label. The
+Goto is simply ignored.
+
+7) No "Undefined" Errors
+
+There is no error message when a sequence (or the 68000)
+references an undefined patch, sequence, modulator, or sample.
+Under GEMS, these typically have no effect. In the game code,
+the results are unpredictable.
+
+8) "Goto" out of Loops
+
+If you "Goto" out of a "Loop Start"/"Loop End" pair, the results
+are unpredictable (the loop stack is then invalid.)
+
+9) Scroll Bars
+
+Sometimes the page up and page down feature of the scroll bars
+does not work (clicking above or below the sliding button box.)
+Click on the up or down arrow, or slide the middle button up
+or down instead.
+
+
+
+1) Overview
+===============================
+
+
+1.1) Sequences, Tracks, Channels, Patches, and Voices
+--------------------------------------------------------
+
+In the GEMS system, the various sound synthesis capabilities of the 
+Genesis are tied together to form a MIDI-compatible multi-timbral 
+voice module. This means that the GEMS software simulates up to 16 
+MIDI instruments, one for each MIDI channel, each of which can be 
+assigned to one of 128 different patches stored in the GEMS patch 
+bank. This allows a piece of music made up of many separate 
+instruments or parts to be easily composed and played from a MIDI 
+sequencer. Specifically, for each of up to 16 instruments:
+
+	1) place all of the notes for the instrument in a sequencer
+	track,
+	
+	2)  assign the track to one of the 16 MIDI channels, and
+	
+	3) tell GEMS which patch to use for that instrument's notes by
+	placing a MIDI program change message at the beginning of the 
+	track.
+
+In addition to selecting a patch at the beginning of each track, 
+additional program change messages may be inserted at any point 
+later in a track, allowing more than 16 patches to be used in a single 
+sequence. 
+
+An important feature of GEMS is that the 16 channels are poly mode 
+channels. This means that more than one note can be on at the same 
+time on a given channel (i.e., it is no longer necessary to break up 
+chords across multiple monophonic channels).
+
+A program change message is actually only one of several types of 
+control messages which can be placed in a track to effect 
+subsequent notes. These messages include controls for pitch 
+modulation (used for pitch bend and sound effects), priority setting, 
+and other GEMS-specific information. MIDI defines a set of special 
+messages for storing these synthesizer specific controls, called 
+control change messages. Each GEMS-specific control is assigned to 
+one of the MIDI control change messages. This allows a standard 
+MIDI sequencer to control these special GEMS features. 
+
+
+1.2) Dynamic Voice Allocation
+-------------------------------
+
+The GEMS system does not actually contain 16 synthesizers, but 
+rather 10 hardware voices, each capable of generating one note at a 
+time. In addition, each hardware voice only supports certain kinds of 
+patches. GEMS uses dynamic voice allocation to automatically route 
+each note from each MIDI channel to an appropriate hardware voice. 
+To do this, GEMS checks which patch was most recently selected on 
+the note's channel, and then checks which hardware voices support 
+that type of patch. A free voice of that type is then loaded with the 
+particular parameters of the patch and triggered at the note's pitch. 
+The composer is therefore relieved of the task of assigning specific 
+notes to specific hardware channels, and need only be concerned that 
+at any time the Genesis's total voice capability for each type of patch 
+is not exceeded.
+
+Typically, game music should be composed to not exceed the 
+hardware limitations of the Genesis. With the limited number of 
+voices, however, the music will often keep all of those voices busy.
+The limits therefore are likely to be exceeded when sound effects 
+are triggered from the game, on top of the music. A priority setting 
+feature is provided on a channel by channel basis (much like a 
+program change) to indicate to the voice allocation software which 
+music voices are least important when looking for voices to steal 
+for sound effects. 
+
+
+1.2.1) Sustain Pedal
+-----------------------
+
+Although a channel will try to take multiple voices when it contains 
+polyphonic data, it will also try to stay on a single voice when it is 
+monophonic (only one note on at a time). It is sometimes desirable, 
+however, for a channel to seek a different voice for each subsequent 
+note. This is often the case when featuring a patch with a long 
+sustain phase, such as a gong or bell sound. Striking a sequence of 
+notes where the notes rotate through the available voices gives a 
+rich sound as many overlapping and decaying sounds are combined. 
+This behaviour is controlled on a channel by channel basis with the 
+Sustain opcode. With Sustain Off, a channel will try to stay with a 
+single voice; with Sustain On, a channel will try to rotate through 
+any free voices.
+
+	Opcode:			"Sustain"
+	Fields:			On/Off
+	MIDI equivalent:	MIDI Controller #64 = on(127)/off(0)
+	Library routine:	gemssustain
+	Notes:			Default is off
+
+
+1.2.2) Priority
+-------------------
+
+In the event that a note cannot allocate a hardware voice of the 
+appropriate type, the priority of the note (i.e., the most recent 
+priority set on the note's channel) is compared to the priorities of 
+the notes currently using the appropriate hardware voices (i.e., an 
+FM note is only compared to the FM hardware voices.) If the new 
+note's priority is greater than or equal to the existing note with the 
+lowest priority, the new note takes over the voice of the existing 
+note. If the new note's priority is less than the existing notes, the 
+new note is not sounded. 
+
+Priority is represented by a number between 0 and 127, where 127 
+is the highest priority (i.e., most important note information, such 
+as sound effects.) All channels default to a priority of 0. Use the 
+Priority opcode to change the priority setting of a channel of a 
+sequence:
+
+	Opcode:			"Priority"
+	Fields:			0-127
+	MIDI equivalent:	MIDI Controller #19 = priority
+	Library routine:	gemspriority	
+	Notes:			Default is 0
+
+
+NOTE!!  One sound engineer we have worked with uses priority values
+1-10 for music channels, 99-103 for sfx, and 110 for digital samples.
+
+1.3) Hardware Voices
+-------------------------
+
+There are six voices which use 4-operator FM synthesis. A note 
+played using an FM patch will require one of these six voices. 
+
+Two of the FM voices have additional special capabilities:
+
+FM voice 3 can assign an arbitrary frequency to each of its 4 
+operators. This is refered to in various Yamaha and Genesis 
+documentation as Channel 3 mode, and is useful for certain sounds 
+such as drums. A note played using an FM Channel 3 Mode patch will 
+require FM voice 3, or it will not be able to sound. For this reason, 
+the voice allocation software will steer away from FM voice 3 for 
+normal FM patches unless it is the only voice free. 
+
+FM voice 6 can be switched to a mode for playing back digital audio 
+samples. A note played using a digital patch will require FM voice 6, 
+or it will not be able to sound. As in the case of voice 3, the 
+allocation software will also avoid voice 6 for normal FM patches, 
+unless it or voice 3 is the only one free.
+
+There are three voices which can only generate square waves, called 
+PSG voices. A note played using a PSG Tone patch will require one of 
+these three voices. PSG voice 3 also has a special capability, 
+described below.
+
+Finally, there is a single voice which can generate a variety of white 
+noise and related sounds, called the PSG Noise voice. A note played 
+using a PSG Noise Patch will require this voice. A special mode of 
+the PSG Noise voice is to use the output of PSG voice 3, instead of a 
+fixed frequency, as the base frequency to the noise generation 
+circuit. Sweeping PSG voice 3's frequency will therefore sweep the 
+spectrum of the white noise, which is very useful for sound effects, 
+especially explosions. Since a note played using this type of patch 
+will also require PSG voice 3, the allocation software will avoid 
+PSG voice 3 for normal PSG Tone patches, unless it is the only one 
+free.
+
+
+1.4) Pitch Modulators
+-------------------------
+
+An important GEMS software feature is the addition of pitch 
+modulation to the Genesis synthesis hardware. A pitch modulator 
+varies the initial pitch of a note (i.e., the pitch played from the 
+keyboard or sequencer) as a user-defined function of time. This is 
+much like the pitch bend feature found on many keyboards. A pitch 
+modulator is different from MIDI pitch bend in that the modulator's 
+change in pitch over time is stored separately from the sequence 
+note data as a series of connected straight line ramps up and down 
+in pitch. Such a "curve" can be represented with a few bytes per 
+ramp. MIDI pitch bend, on the other hand, requires several bytes 
+every time the pitch wheel is moved, and must be stored right in 
+with the note data. Not only is there a lot more data to store, the 
+data cannot be reused later in the sequence, or shared with other 
+sequences.
+
+Pitch modulators are stored in a GEMS sound module in the 
+Modulator Bank. Pitch modulator curves, or envelopes, are created 
+and modified using the Modulator Editor.
+
+A pitch modulator is triggered on a particular MIDI channel by 
+certain MIDI control change messages. Once triggered, a pitch 
+modulator runs through its entire envelope curve, effecting all notes 
+in its channel. A pitch modulator may be triggered at a specific time 
+by a control change message, or it may be set to retrigger with each 
+note-on event, within a particular channel.
+
+	Opcode:			Modulator Trigger
+	Fields:			Modulator Selection/Note On
+	MIDI equivalent:	MIDI Controller #68 = trigger
+				modulator selection (127), or
+				at Note On(0)
+	Library routine:	gemsretrigenv
+	Notes:			Default is trigger modulator selection
+
+	Opcode:			Modulator Change
+	Fields:			Modulator #
+	MIDI equivalent:	MIDI Controller #80 = Modulator #
+	Library routine:	gemssetenv
+	Notes:			Also triggers it if appropriate
+	
+To trigger a pitch modulator immediately in a channel, send:
+
+	MIDI Controller #68 = off (0)
+	MIDI Controller #80 = modulator number
+
+To set a pitch modulator to retrigger at each subsequent Note-on, 
+send:
+
+	MIDI Controller #68 = on (127)
+	MIDI Controller #80 = modulator number
+
+Within a single channel, only one pitch modulator may be running at 
+a time. Retriggering the same modulator, or triggering a new 
+modulator, will cancel the previous modulator. In addition, only four 
+channels total may be running a pitch modulator simultaneously. If a 
+fifth channel attempts to trigger an modulator, the modulator will 
+simply not trigger. 
+
+
+2) MIDI Performance Mode and the GEMS Sequencer
+================================================
+
+
+During most of the music composition process, the music is 
+sequenced from an external sequencer connected to the GEMS system 
+via MIDI. GEMS provides the patch bank, patch editor, modulator 
+bank, modulator editor, and MIDI interface for the Genesis. This is 
+called MIDI Performance Mode. As mentioned above, all GEMS-
+specific control information can be represented directly in the MIDI 
+sequence using certain MIDI control change messages. Features such 
+as priority settings, pitch modulators and the sustain switch are 
+therefore available during MIDI performance mode. Other features, 
+typically those which control the flow or tempo of the music, and 
+would therefore need to be understood by the external sequencer to 
+have effect, are ignored by GEMS during MIDI performance mode. 
+The sequence itself must be transfered to the GEMS system and 
+played from the GEMS Sequencer in order to try features such as 
+looping, channel muting, tempo control, and conditional execution.
+
+The GEMS Driver manages information for up to 16 polyphonic 
+channels simultaneously. During MIDI Performance Mode, the 16 
+GEMS channels correspond to the 16 incoming MIDI channels (e.g. 
+GEMS channel 1 is used to play information from MIDI channel 1, 2 
+for 2, etc.).  The GEMS sequencer uses the 16 GEMS channels in a 
+slightly different way, allowing multiple sequences to play 
+simultaneously (such as music plus sound effects). When a sequence 
+is started in the GEMS sequencer, one GEMS channel is allocated for 
+each channel in the sequence, up to a maximum of 16 total channels.
+For example, if you have an eight channel song, you can actually start 
+it twice from the GEMS sequencer. Because of the dynamic voice 
+allocation, you will actually here the two versions running 
+simultaneously, though many individual notes (hardware voices) will 
+get clipped early as they are reused.
+
+NOTE! There is no priority checking in channel allocation - if a 
+sequence runs out of MIDI channels when it is started, some of its 
+channels will simply never start. It is therefore up to the artist and 
+programmer to decide on a channel budget, i.e., how many channels 
+(out of 16) are available for music, and how many are available for 
+sound effects. A typical allocation is 10-12 channels for the 
+background music, and 4-6 channels for sound effects.
+
+2.0) Digital Sample Quality
+------------------------------
+
+Because the Z80 runs sample playback, and the 68000 has to stop the
+Z80 to read the MIDI data from the PC, there is a tradeoff between
+good sample quality and fast MIDI response. This problem does not
+exist in the game environment, because the 68000 does not constantly
+interrupt the Z80.
+
+GEMS normally decides automatically between sample quality and MIDI
+speed: When a note arrives over MIDI, GEMS switches to fast midi, poor
+quality samples. The samples will then playback at a lower
+frequency, because the Z80 is stopped so much. When a note is pressed
+on the Piano window, or a sequence is started in the GEMS sequencer, 
+GEMS switches to slow MIDI, good quality samples. You can lock GEMS
+in this mode, even with data coming in on MIDI (such as from a 
+keyboard) by selected the "Lock ..." item in the "System" menu.
+
+2.1) Tempo Control
+---------------------
+
+When a sequence is played from an external sequencer, that 
+sequencer controls the tempo. When a sequence is played from the 
+GEMS sequencer, GEMS controls the tempo. GEMS converts beats to 
+real time at playback time, according to the setting of the GEMS 
+tempo. This allows the tempo of music to be varied during the game, 
+either from the 68000 code, or from an opcode within the sequence 
+itself.
+
+	Opcode:			"Tempo"
+	Fields:			40-167 BPM
+	MIDI equivalent:	MIDI Controller #16 = bpm - 40
+	Library routine:	gemssettempo
+	Notes:			the offset of 40 maps the MIDI 
+				controller values 0-127 into the more
+				useful tempo range of 40-167 bpm.
+
+NOTE! When a tempo opcode is edited in the GEMS opcode editor, the 
+40 bpm offset is handled automatically (what you see is what you 
+hear).
+
+
+2.2) Tempo for Sound Effects
+-------------------------------
+
+There is only one adjustable timebase (tempo) in the GEMS 
+sequencer. A tempo opcode from any channel therefore effects all 
+channels. It is often desirable, however, to have sound effect 
+sequences always run at a fixed tempo, regardless of the setting of 
+the music tempo. GEMS therefore provides a second, fixed timebase, 
+which runs at 150 bpm. To use the fixed timebase, place an "Sfx 
+Tempo" opcode at the very beginning (beat 1, tick 0) of EACH channel 
+of the sequence. This setting is reset whenever GEMS starts a new
+sequence.
+
+	Opcode:			"SFX Tempo"
+	Fields:			- none -
+	MIDI equivalent:	MIDI Controller #70 = 0
+	Library routine:	- none -
+	Notes:			Channel runs at 150 bpm
+ 
+
+2.3) Looping
+---------------
+
+The GEMS sequencer provides each channel with up to four levels of 
+nested looping. To add a loop, surround the opcodes and notes to be 
+looped with a pair of "Loop Start" and "Loop End" opcodes. The Loop 
+Start opcode specifies how many times to run the loop. The loop 
+count is either a fixed value from 1 to 126, or the special "Endless" 
+setting - for the outer loops of background music. 
+ 
+NOTE! Looping is per channel. To loop all channels in a sequence, you 
+must place loop opcodes in each channel.
+
+At a Loop End opcode, if the loop count is fixed and has not been 
+reached yet, or if the loop is endless, then that channel jumps 
+immediately back to the matching Loop Start. A simple 4 beat loop 
+would place the Loop Start opcode at beat 1, tick 0 and the Loop End 
+opcode at beat 5, tick 0. The would cause the sequencer to jump from 
+beat 5, tick 0 to beat 1, tick 0 without any delay.
+
+
+2.4) Conditional Opcodes
+---------------------------
+
+The GEMS sequencer provides a basic set of programming opcodes 
+for implementing more complicated flows. 
+
+
+2.4.1) "Label" and "Goto"
+---------------------------
+
+The "Label" opcode can be placed anywhere in a channel's data to 
+indicate a point that can be branched to with a "Goto" opcode. Labels 
+are identified by their value, 0-127, allowing up to 128 unique 
+labels per channel. The "Goto" opcode causes an immediate jump to a 
+label. The Goto opcode's value, 0-127, indicates which label to jump 
+to. 
+
+Label and Goto are mainly useful when combined with the "If" 
+opcode.
+
+
+2.4.2) Mailboxes and "If"
+------------------------------
+
+GEMS provides 30 general purpose variables, called Mailboxes 
+(shared between all sequences and channels), each of which can hold 
+a value between 0 and 127. A value can be placed in a mailbox from 
+the 68000 (i.e., by the game) or from a "Store" opcode within a 
+sequence. There is also a Store feature on the Piano window for 
+testing mailbox usage. The 68000 can also read mailbox values.
+
+Mailboxes can affect the music and/or sound effects via the "If" 
+opcode. The If opcode compares a mailbox to a fixed value (0-127), 
+and then controls whether or not the next opcode in the channel is 
+executed.
+
+NOTE! The If opcode and the opcode it affects (i.e., the next opcode) 
+MUST have the same beat/tick value. If the opcode following the If is 
+in a different tick, it will not be affected by the If. Also, the opcode 
+following the If cannot be "Loop Start", "Loop End", "If", or "Label".
+
+Examples:
+
+At beat 2, tick 3, if mailbox 0 is greater than 4, then unmute channel 
+3:
+	2 * 3	-	If  Mbox 0  >  4
+	2 * 3	-	Un-Mute Ch 3
+
+At beat 4, tick 0, if mailbox 3 is equal to 0, skip directly to beat 5, 
+tick 0 (skip a whole beat's worth of notes and opcodes):
+
+	4 * 0	-	If		Mbox 3  =  0
+	4 * 0	-	Goto Label	56
+	4 * 0	-	C#3		0 * 3
+	4 * 12	-	E4		0 * 3
+		...
+	5 * 0	-	Label	56
+
+
+2.5) Recording
+-------------------
+
+The only way to transfer a sequence to the GEMS system is to record 
+it from live MIDI as the sequence is played by the external 
+sequencer. The recording process requires that the sequencer send 
+MIDI clock information along with the channel data. (This is 
+sometimes an optional feature which must be enabled in the 
+sequencer.) When a sequence slot in the GEMS sequence bank is 
+selected for recording, GEMS waits for a MIDI Start Clock message 
+from the sequencer at which point recording begins.
+The recording continues until a MIDI Stop Clock message is received. 
+The sequence can then be played from the GEMS sequencer by 
+selecting the sequence in the sequence bank and pressing the PLAY 
+button. While the sequence is playing, it may be stopped by selecting 
+it and pressing the STOP button.
+
+NOTE!! Sequences must use only contiguous channels, starting at zero.
+(Some sequencers display the channel numbers starting at one, to be
+more user friendly. In either case, the first channel is called zero
+by GEMS.) GEMS will ignore all channels after the first unused one.
+For example, if data is sent for channels 0, 1, 2, 4, 5 and 6, then GEMS
+will only record channels 0, 1, and 2.
+
+NOTE!! GEMS measures the timing of the incoming MIDI in beats and
+1/24ths of beats, using the MIDI Clock messages in the data itself.
+It therefore doesn't matter how fast the sequence is played. To
+transfer something quickly, turn the sequencer tempo way up.
+
+NOTE!! After the MIDI data is recorded, it is converted to a list
+of events, each of which has a time stamp in beats and ticks. The
+counting process does not start until the first MIDI event occurs
+during recording. The sequence should therefore have at least one 
+event at beat 1, tick 0, on any channel, to begin the timing process.
+
+
+2.6) Quantization
+---------------------
+
+An important aspect of the GEMS recording process is that all note, 
+program change, and control change information is quantized to 
+1/24's of a beat - the resolution of the MIDI clock messages. Since a 
+beat is typcially a 1/4 note, this is equivalent to 1/64 note triplets. 
+Another measure of the resulting resolution is that at 120 beats per 
+minute, a 1/24 of a beat is 1/48 of a second - close to the maximum 
+resolution of 1/60 of a second provided to the Z80 via interrupts. 
+Since resolutions finer than this are possible from most sequencers, 
+and the difference can be noticed, it is advisable to keep the data in 
+the external sequencer quantized to 1/64 note triplets (or any larger 
+note which is an integral multiple of 1/64 note triplets, such as 
+1/32 notes, 1/32 note triplets, 1/16 notes, etc.,) so that there are 
+no major surprises after transfer to the GEMS sequencer.
+
+The recorded data can be viewed by selecting the sequence in the 
+sequence bank and pressing the EDIT button. The sequence editor 
+will look much like the list editor in most sequencers. It will display 
+the note, program change, and control change messages which were 
+recorded for the sequence. The data is displayed one channel at a 
+time, or all channels at once. The left columns of the display are the 
+time, measured in beats and 1/24 of a beat from the beginning of the 
+sequence in which the event occured. 
+
+
+3) Running GEMS
+==================
+
+
+3.1) System Requirements
+----------------------------
+
+An IBM-compatible PC with:
+	a minumum of 640k of RAM,
+	2 Mbytes of free space on a hard disk,
+	a parallel port,
+	a VGA display,
+	a Logitech or Microsoft mouse
+	a Roland MPU-401 compatible MIDI interface,
+		with its interrupt set to IRQ7. 
+
+A Genesis equipped with a Sega Loader Board, and a Sega 
+	RAM/ROM board containing the GEMS 2.0 firmware (EPROMS).
+
+A 25-pin printer cable.
+
+A Monitor (TV) hooked up to the Genesis.
+
+NOTE! It is important to use a TV with the GEMS system during
+sound development. The most important reason is that the earphone
+jack output does not distort as quickly as the modulator or 
+direct video/audio output. Things that sound great though the
+earphone jack may sound terrible through the TV. The second
+reason is that information about the operation of the
+system can be viewed on the TV.
+
+NOTE! If the MPU-401 must be set to another interrupt (i.e., IRQ0 
+through IRQ6,) then boot GEMS with the command "gems -i <inum>", 
+where <inum> is a number between 0 and 6 indicating the desired 
+interrupt.
+
+
+3.2) Getting started
+-----------------------
+
+NOTE! GEMS requires lots of memory, so it is best to run it under 
+plain old DOS, without any extra loads on memory, such as memory 
+resident utilities or graphical command shells. (GEMS is not 
+WINDOWS compatible.)
+
+	1) Create a directory "\GEMS" on your hard drive.
+	
+	2) Copy GEMS20.ZIP into that directory.
+	
+	3) Run PKUNZIP -D GEMS20.ZIP
+	
+	4) Plug the loader board into the 9-pin D connector on the back 
+	panel of the Genesis.
+	
+	5) Connect the loader board to the P.C.s parallel port via a 25 
+	pin printer cable.
+	
+	6) Turn on the Genesis. If you have a TV or monitor hooked up 
+	to the Genesis, the display should have a line at the top which 
+	reads "GEMS DRIVER" followed by a version and a date.
+
+Since you are probably starting from scratch, you might find it 
+easiest to open up the example sound module in the "SHIP\MUSIC" 
+directory called "SHIP.MOD". This module contain a bunch of sounds, 
+an example modulator, and a sequence for you to play with.
+
+
+3.3) Opening the test sound module
+---------------------------------------
+
+	1) Go to the GEMS directory,  type "gems", and hit return. At 
+	this point, the GEMS software will boot and take over your 
+	screen.
+
+NOTE! GEMS normally requires that the PC is connected to a Genesis 
+running the GEMS software. It is possible, however, to boot GEMS 
+without a Genesis, useful for reviewing patch, modulator, or 
+sequence data, by starting GEMS with the -ng switch. In other words, 
+type "gems -ng" (the ng must be lower case!).
+
+	2) By default, GEMS attempts to initialize the MIDI interface. 
+	The 'MIDI' option under the "System'"menu indicates the 
+	current state of the MIDI mode ("On" or "Off"). Check the 
+	"System" menu to insure that the MIDI mode is "On". Click on
+	"MIDI" in the "System" menu to toggle the  MIDI mode. 
+	
+	3) Select "Open" from the main menu bars "Module" menu. At 
+	this point, two windows will open, an untitled sound module
+	window and the "Open..." window. Use the right hand "Directories"
+	file selector box to locate the "SHIP\MUSIC" directory you just
+	made. Double click on it. 
+	
+	4) Double click on "SHIP.MOD" in the left hand "Files" file 
+	selector box. Gems will take a couple of seconds to download all
+	of its patches and sequences to the Genesis.
+
+
+3.4) Looking at Patches
+---------------------------
+
+	1) After opening a sound module, the Genesis has all the 
+	patches in memory. To view these patches, click on "Patch
+	Bank" in the "Windows" menu. The patch bank window will open. 
+
+Since GEMS utilizes dynamic voice allocation, all of the different 
+types of patches (FM, FM Channel 3 mode, PSG tone, PSG noise, ) will 
+appear side by side. The GEMS driver will take care of assigning the 
+correct hardware voice to the patch you want to play. 
+
+
+3.5) Listening to Patches
+---------------------------
+
+When you first open a sound module, all 16 MIDI channels will be 
+assigned a default program change change message of 0. In other 
+words, all incoming MIDI notes regardless of channel, will play patch 
+#0 (NEGFEEDB.FM in the test case). 
+
+To listen to the other patches in this bank, simply send the program 
+change of the patch you wish to listen to on whatever MIDI channel 
+your keyboard is sending on.
+
+Remember that the Genesis will continue to associate a MIDI channel 
+with whatever the last program change it received on that channel.
+
+
+3.6) The Piano
+------------------
+
+To hear a particular patch by using the piano window, follow these 
+steps:
+
+	1) Select "Piano" from the main menu bars "Windows" Menu. 
+
+	2) In the piano window, click on the patch name to the right of 
+	"Program", and move the mouse up and down until the patch you 
+	wish to try is showing.
+
+	3) Click on the "Send" button to the left of "Program".
+
+	4) Play notes on the keyboard by clicking on them.
+
+
+3.7) Editing Patches
+----------------------
+
+If you wish to change an existing patch, follow these steps:
+
+	1) In the patch bank window, double click on the patch you 
+	wish to edit. The patch editor will open up.
+	
+	2) Edit the patch.
+
+NOTE! If you want to play the patch from your keyboard (or the 
+piano window) while you edit, remember to program change the 
+MIDI channel you are using to play notes to the program (patch) 
+being edited.
+
+If you wish to start with an existing patch and make a new patch 
+based on it, follow these steps:
+
+	1) In the patch bank window, double click on the patch you 
+	wish to edit a copy of. The patch editor will open up.
+	
+	2) Select "Save Copy..." in the "Patch" menu.
+	
+	3) Pick an unused patch number from the "Save Copy of Patch" 
+	window. You may want to rename the patch to a more appropriate 
+	name than "Copy of ...".
+	
+	4) Select "Close" in the "Patch" menu.
+	
+	5) Edit the new patch.
+
+
+3.8) Creating New Patches
+-----------------------------
+
+	1) Click on an unused patch in the patch bank window.
+	
+	2) Click on the "New ***" button for the type of patch you wish 
+	to create.
+
+
+3.9) Importing Patches
+-----------------------------
+
+Artec format .FM and .PSG files can be imported into a GEMS patch 
+bank. Artec PSG Noise patches cannot be reliably imported due to 
+certain ambiguities in their file format... sorry.  Gems can import 
+(and export) its own .PAT file format which does not have this 
+problem.
+
+	1) Select an unused slot in the patch bank window.
+	
+	2) Click on the "Import" button.
+	
+	3) Use the file selector boxes that appear.
+ 
+
+3.10) Exporting Patches
+-----------------------------
+
+Exporting patches allows copying patches between sound modules.  
+To export a patch to a DOS file, follow these steps:
+
+	1) In the patch bank window, select the patch to export and 
+	click on "Export".
+	
+	2) Select an appropriate DOS compatible file name, retaining 
+	the .PAT extension.  THIS IS IMPORTANT!!  The DOS file name must 
+	have the extension .PAT!!
+	
+	3) Choose the directory into which you want to export the file.
+	
+	4) Click on "OK"
+
+
+3.11) Deleting Patches
+-------------------------
+
+	1) In the patch bank window, select the patch to delete.
+	
+	2) Click on "Delete".
+
+NOTE!  Once you delete something, its gone!
+
+
+3.12) Looking at Modulators
+-------------------------------
+
+To open the modulator bank:
+
+	1)  Select "Modulator" from the "Windows" menu.
+
+Modulators live in a file very similar to the patch bank file, called 
+"ENVELOPE.BNK".  Procedurally, everything is pretty much the same 
+here except the actual content of the data you are editing.
+
+
+3.13) Listening to Modulators
+-------------------------------
+
+To hear the effect of a modulator:
+
+	1) Open the piano window as before.
+	
+	2) Click on the modulator name to the right of "Envelope", and 
+	move the mouse up and down until the desired modulator is 
+	showing.
+
+	3) Click on "Send" to the left of "Envelope".
+	
+	4) Experiment with the "Env Trig..." buttons using a patch with 
+	a long release time. Note that "Env Trig @ Selection" causes the 
+	modulator to be triggered when "Send" to the left of "Envelope" is 
+	clicked.
+
+
+3.14) Editing Modulators
+---------------------------
+
+	1) In the modulator bank window, double click on the 
+	modulator you wish to edit.
+
+
+3.15) Creating New Modulators
+---------------------------------
+
+To create a new modulator:
+
+	1) Click once on an unused modulator in the modulator bank 
+	window.
+	
+	2) Click on the "New Pitch" button.
+
+
+3.16) Deleting Modulators
+-----------------------------
+
+	1) Select the modulator you want to delete.
+	
+	2) Click on "Delete"
+
+NOTE!  Once you delete something, its gone!
+
+
+3.17) Looking at Sequences
+------------------------------
+
+To open the sequence bank:
+
+	1)  Select "Sequence Bank" from the "Windows" menu.
+
+Sequences live in their own files. Gems maintains some information 
+about each sample in the "SEQUENCE.BNK" file. Sequence files are 
+named SEQ followed by the number within the sequence bank, and 
+MUST be in the same directory as the sound module itself (also see 
+the section on Creating a new sound module.)
+
+
+3.18) Playing Sequences
+----------------------------
+
+To play a sequence, do this:
+
+	1) Click on the sequence. It will highlight.
+	
+	2) Click on Play.
+
+
+3.19) Recording Sequence
+-----------------------------
+
+To record a sequence, do this:
+
+	1) Click on an unused sequence. It will highlight.
+	
+	2) Click on New. This brings up the Opcode Editor with an 
+	empty sequence.
+	
+	3) Select Close from the Sequence menu.
+	
+	4) Click on Record.  The PC will wait for your sequencer to 
+	send the MIDI Start Clock message, and record until the MIDI Stop 
+	Clock message.
+	
+	5) Start your sequencer.
+
+WARNING!!!  Dont click on Record while a sequence you care about 
+is hilighted, or it will be overwritten when the recording starts!!!
+If you do, and want to save the old data, click on "CANCEL".
+
+3.20) Editing Sequences
+---------------------------
+
+	1) Select the sequence you wish to edit
+	
+	2) Click on the Edit button.  This brings up the Opcode Editor.
+
+
+3.21) Creating New Sequences
+-------------------------------
+
+To create a blank sequence, do this:
+
+	1) Click once on the next unused sequence in the sequence 
+	bank
+	
+	2) Click on the New button.  This will bring up the Opcode 
+	Editor with an empty sequence.
+
+
+3.22) Importing/Exporting Sequences
+----------------------------------------
+
+Sequences are stored in their own files since they can get quite 
+large. This means that import/export buttons would only be copying 
+files around, and we feel that DOS is better at it than we. 
+A file containing a sequence is named SEQ###, where ### is the 
+sequences number in the sequence bank. In order for Gems to 
+recognize a file, the entry in the sequence bank cannot be Unused. 
+
+If you wish to copy a sequence within a sound module, or between 
+two sound modules, you should: 
+
+	1) Pick an Unused sequence from the sequence bank.
+	
+	2) Click on New, to mark the sequence as used.
+	
+	3) Close the Opcode Editor.
+	
+	4) Save the sound module, and exit Gems.
+	
+	5) Copy the SEQ### file into the same directory as the sound 
+	module, renaming it to the new ###.
+	
+	6) Restart Gems, and play the sequence.
+
+
+3.23) Deleting Sequences
+---------------------------
+
+	1) Select the sequence you want to delete.
+	
+	2) Click on Delete.
+
+NOTE! There is no Are you sure?  Once you delete something, its 
+gone.
+
+
+3.24) Looking at Samples
+---------------------------
+
+To open the sample bank:
+
+	1)  Select Sample from the Sound Module's Bank menu.
+
+Samples live in their own files. Gems maintains some information 
+about each sample in the SAMP.BNK file. This includes the actual 
+name of the sample file, so they can be named whatever you like, 
+but the file MUST be in the same directory as the sound module 
+itself(also see the section on Creating a new sound module)
+
+Samples may or may not be actually loaded into the Genesis, to 
+allow more samples than fit into memory on the RAM/ROM board. 
+Samples that are loaded are marked by a Yes in the Loaded 
+column.
+
+The sample bank window also tells you how much memory is in use 
+and how much is free in the Genesis, as well as how much memory 
+each sample takes to play. This number is the same as the sample 
+file size, and does not count any header/trailer stripping(see the 
+section on importing new samples.)
+
+
+3.25) Listening to Samples
+-----------------------------
+
+To play a sample on the Genesis, follow these steps:
+
+	1) Select a digital patch on the piano window and click Send.
+	
+	2) To play a particular sample, convert its sample bank number 
+	to a key number using the following table:
+
+		Sample bank number	Key number
+		0 to 47			C4 to B7 (C4=middle C= MIDI 60)
+		48 to 95		C0 to B3
+
+	3) Click on the appropriate key on the keyboard to play the 
+	sample.
+
+NOTE!! Gems will not play a sample that hasnt been downloaded into 
+the genesis!
+
+3.26) Editing Sample parameters
+------------------------------------
+
+To change pararmeters associated with how your sample data is 
+interpreted, start the Sample Editor by:
+
+	1) Select the sample you wish to edit.
+	
+	2) Click on the Edit button.  This brings up the Sample Editor.
+
+
+3.27) Loading Samples
+--------------------------
+
+To load samples into the RAM/ROM card on the Genesis, follow these 
+steps:
+
+	1) Click on the sample you wish to load.
+	
+	2) Click on the Load button.
+
+
+3.28) Unloading Samples
+----------------------------
+
+To unload samples from the RAM/ROM card on the Genesis, follow 
+these steps:
+
+	1) Click on the sample you wish to unload.
+	
+	2) Click on the Unload button.
+
+
+3.29) Importing New Samples
+--------------------------------
+
+To import a new sample, do:
+
+	1) Click once on the next unused sample in the sample bank.
+	
+	2) Click on the Import button
+	
+	3) Use the file selector, and double-click the file you wish 
+	to import.
+	
+	4) Play the sample as above.
+
+NOTE!! If the sample sounds very garbled all the way through, you 
+may have the signed/unsigned switch set wrong. Edit the sample to 
+change it.
+
+NOTE!! If the sample has clicks or unwanted noise at its beginning or 
+end, you can specify a header and/or trailer length in the Sample 
+Editor to bypass samples at the beginning or end. This bypass of 
+samples does not save memory in the Gems system until you actually 
+compile the final sound module.
+
+
+3.30) Deleting Samples
+--------------------------
+
+	1) Select the sample you want to delete
+	2) Click on Delete
+
+NOTE! This operation does not delete the sample file, only the 
+information in SAMPLE.BNK.
+
+
+3.31) Creating a new sound module
+--------------------------------------
+	
+Each sound module must have its own directory. 
+
+When you create a new sound module, you are actually creating five 
+files; a sequence bank file, a patch bank file, an envelope bank file, 
+a sample bank file, and a sound module file. Every patch bank file will 
+be automatically given the name PATCH.BNK. Similarly, sequences are 
+kept in files named SEQ###. GEMS is going to look for these files by 
+name, so they cant be changed. The bottom line is, if you create a 
+second sound module in the same directory, you will instantly write 
+over all of your data from the previous sound module... So just keep 
+each sound module and all of its associated files in its own directory.
+
+Example:
+
+	1) Create a directory on your hard drive called First
+	2) Go to the GEMS directory, and type GEMS and hit return.
+	At this point, the GEMS software will boot and take over your 
+	screen....
+	3) Select New from the main menu bars Module Menu
+	At this point, two windows will open, the sound module 
+	window and the 'New...' window.  Use the right hand file 
+	selector box to locate the First directory you just made.
+	4) Double click on it
+	Since this will be the only sound module in the First directory,
+	you can leave the default name of Sound.Mod as your new 
+	sound module's name.
+	5) click on O.K.
+	The new window will disappear, leaving you with a sound 
+	module window...
+
+
+3.32) Saving a Sound Module
+-------------------------------
+
+	1) Select 'Save' or 'Close' from the sound module window's
+	'Module' menu.
+
+
+3.33) Exiting from GEMS
+---------------------------
+
+	1) Select 'Close' from the sound module window's 'Module' 
+	menu.
+	
+	2) Select 'Exit' from the main menu's bar's 'Module' menu.
+
+
+4) The Patch Editors
+======================
+
+
+The best way to get started with making your own non-digital 
+sounds is by trying the different patch types and experimenting with 
+the parameters. When you make changes to a patch, those changes 
+are immediately reflected in the Genesis, so you can quickly hear 
+what each small change does. Try starting a sequence and then 
+editing one of the patches it uses!
+
+
+4.1) Menus
+-------------------
+
+All patch editor windows have their own Patch Menu. This menu 
+offers four choices:  Revert, Save, Save Copy..., and Close.
+
+	Revert -  Reverts back to the last saved version of a patch
+
+	Save - Saves any changes made to a patch
+
+	Save Copy... - Saves a copy of the current patch in another slot
+
+	Close - Closes the editor
+
+NOTE! Closing an editor with unsaved changes will bring up a dialog 
+box asking you if you want to save those changes.
+
+
+4.2) Controls
+--------------------
+
+Patch editors contain three types of controls: On/Off buttons, Value 
+fields, and text fields. 
+
+	On/Off buttons -  can be switched by clicking on them once
+ 
+	Text fields -  can be edited by clicking to the right of the text 
+	therein, and backspacing, then simply typing from the keyboard.
+
+	Value fields - Can be edited by clicking on the + / - buttons.
+
+NOTE! While value fields can be edited like text fields, this method 
+will allow you to enter inappropriate numbers. Using the +/- widgets 
+will limit you to acceptable values.
+
+
+4.3) Naming
+-----------------
+
+Near the top of each patch editor is a small, one-line window in 
+which you can change the name of a patch.  Names are primarily 
+supported for your convenience; throughout the internals of Gems, 
+and the game programmer interface, only numbers are used.
+
+
+4.4) The FM Patch Editor
+---------------------------
+
+The following is a brief description of the fields in the FM Patch 
+Editor. This description assumes you have some familiarity with FM 
+synthesis.
+
+
+Alg#  - refers to the Algorithm chart in the Yamaha document.
+	0	Serial 4-operator mode
+	1	Double-modulation serial 3-operator mode
+	2	Double-modulation mode 1
+	3	Double-modulation mode 2
+	4	Serial 2-operator 2-channel mode
+	5	Common-mosultaion 3-channel mode
+	6	Serial 2-operator 2-sinusoid mode
+	7	4-channel sinusoidal synthesis mode
+
+	CH3 ON / OFF - This refers to a special mode of the third FM 
+	hardware channel. If CH 3 is on, the four CH 3 f fields will
+	allow you to set each operators frequency independently. There
+	are two implications of creating a patch with this mode:
+ 
+	1) Since there is only one hardware channel that can run in this 
+	mode, you cannot play polyphonic parts with this patch type.
+	
+	2) The frequency at which this patch sounds will always be the 
+	same regardless of what the incoming MIDI note value is.
+
+	LFO ON / OFF - There is one LFO (Low Frequency Oscillator) for 
+	all six FM voices in the FM chip. This button turns it on and off. 
+
+NOTE! Currently, each patch sent to the FM chip will reset the LFO. In 
+future, patches with an LFO setting of Off will not turn the LFO off 
+since they can be set to ignore it with their AMS and PMS settings. 
+furthermore, LFO On patches will resolve conflicts for resetting the 
+LFO with a priority check. 
+
+	LFO frq - controls the LFO frequency. 0 is slow, 7 is fast
+
+	Feedbck - refers to the amount that operator #1 will feedback 
+	upon itself.
+
+	AMS - Refers to the degree to which the amplitude of the 
+	operators in this patch will be effected by the LFO. Remember 
+	that each operator can be set individually to respond or not
+	to respond to amplitude modulation (see below).
+
+	PMS - refers to the degree to which the overall pitch of the 
+	patch will respond to the LFO
+
+	Right / Left - These buttons refer to whether the patch will 
+	play out of the right and/or left side of the stereo output
+	jack on the front of the Genesis. 1 = yes;  0 = no. Setting 
+	both left and right to = 1 will cause the patch to play out the
+	center. 
+
+The rest of the editor is divided into identical groups of settings for 
+the four individual operators. 
+
+	Detune - Allows each operator to be detuned from the other 
+operators from a +3 (sharp) to-3 (flat) range ( 0 = no detuning)
+
+	Mult - Determines the whole number integer by which the 
+incoming frequency is going to be multiplied by each individual 
+operator. ( 0 = 1/2 or one octave below, 1 = same as incoming 
+frequency, 2 = twice the incoming or one octave above, etc).
+
+	KScale - refers to keyboard scaling. This controls the overall 
+	duration of each operators envelope without altering its 
+	shape. (0 = the shortest duration, 3 = the longest duration)
+
+	Enable / Disable - Switches the operator on and off individually
+
+	AM on/off - allows each operator to accept or ignore amplitude 
+	modulation information coming from the LFO. Remember that the 
+	AMS setting effects all of the operators.
+
+The rest of the settings refer to a standard ADSR envelope. The 
+graphs are fairly accurate.
+
+	Tlevel = total level 
+	Slevel = sustain level 
+	Attack = attack rate 
+	Decay = decay rate 
+	Sustain = sustain decay rate
+	Release = release rate
+
+NOTE!   tlevel (total level) and slevel (sustain level) are 
+attenuation settings. Zero is loudest, higher numbers are softer i.e. 
+more attenuation. 
+ 
+
+4.5) The PSG/Noise Editor
+----------------------------
+
+The PSG chip has four voices, of these four, only one can utilize the 
+special noise mode.  Therefore, there are two types of PSG patches; 
+tone (called PSG) and Noise. 
+
+The tone type patches are basically square waves whose amplitudes 
+are modulated by an ADSR envelope.
+
+* Again tlevel and slevel are attenuation settings, zero is loudest...*
+
+Noise type patches also have the ADSR envelope, with the addition of: 
+
+	The White / Sync. button - Selects between white (white noise) 
+	and sync. (a pulse wave). 
+
+	The Divide field - Refers to the fixed frequencies at which 
+	either the white noise or the pulse wave may be played and a 
+	special pitch mode.
+	
+		0 = the highest pitch
+		1 = middle   
+		2 = lowest fixed pitch
+		3 = special pitch mode
+
+Special pitch mode utilizes one of the other PSG hardware voices to 
+allow the noise patch to respond to pitch from either the incoming 
+MIDI note pitch value and/or a pitch modulator.
+
+Sync. mode noise patches are useful for playing tones lower than 
+normally possible on the PSG.
+
+
+5) The Modulator Editor
+========================
+
+
+Pitch modulators are constructed as multi-staged envelopes. These 
+envelopes effect the pitch of all of the notes on the channel upon 
+which the envelope is triggered. If an envelope calls for a note to be 
+modulated beyond the chips range (C0 to B7), the excess modulation 
+is clipped without cancelling either the note or the envelope.
+
+Initial Level- Refers to the instantaneous change in pitch upon 
+triggering of the envelope. The units are 256ths of a semi-tone. 
+Positive values change pitch upward, negative values change pitch 
+downward. The maximum value here would be +/- 24576 or eight 
+octaves.
+
+	Ex.  An initial level of 512 would cause the pitch of all notes on 
+	the envelope's channel to jump one whole step up upon 
+	triggering.
+
+	Current Segment- Selects which segment of the envelope you 
+	are currently editing.
+
+	Duration - Sets the number of 24ths of a beat the travel at the 
+	current slope. 
+
+	Slope - Sets the number of 256ths of a semi tone to travel in 
+	1/24th of a beat
+
+NOTE!! Total pitch change per segment will equal the duration times 
+the slope.
+
+
+6) The Sequence Editor
+=======================
+
+
+The Sequence Editor lets you post-process recorded MIDI sequences 
+to add presentation-related commands to a sequence.
+
+The Sequence Editors sub-windows(along with the piano) use a 
+slightly different kind of input field. This field simply displays its 
+value until you click on it at which point it highlights. You can then 
+type a new value(this doesnt work for note numbers or other non-
+numeric data), or click while the mouse has changed to an up or 
+down arrow to change the value. To see which fields are editable on 
+a particular window, you can use the tab key to cycle through 
+available fields.
+
+
+6.1) Menus
+-------------
+
+The Sequence menu has the following items:
+
+	Save - Save the current sequence to its file.
+
+	Close - Close the Opcode Editor
+
+The Display menu has the following items:
+
+	Outline Mode - When this is checked, no note opcodes are 
+	shown. This allows you to work on the flow of your sequence
+	without having to scroll around through it.
+
+	All Channels - Shows all channels used by the sequence merged 
+	together. An opcodes channel number is shown in square braces
+	[,].
+
+
+6.2) About beat/sub-beat notation
+-------------------------------------
+
+All opcodes have an event time, which is the number of beats and 
+sub-beats from the beginning of the sequence(ignoring loops for 
+now) at which the event occurs. Some opcodes, such as note on, have 
+a duration time, also in terms of beats and sub-beats. All event or 
+duration times in a sequence are shown in the form of bb*ss, where 
+bb is the beat number and ss is the sub-beat number. Sub-beats are 
+1/24th of a beat, and can take on the values between 0 and 23, 
+inclusive. Beat numbers can range up nearly as high as you can 
+count.
+
+NOTE!! Event times for events in or after loops are usually wrong. 
+Times in loops are only valid for the first time through the loop, 
+after which youre on your own. Event times of opcodes placed after 
+a loop end opcode are treated as though the loop was only run once.
+
+
+6.3) Channel management
+---------------------------------
+
+A single sequence is made up of up to 16 channels that contain its 
+opcodes. These channels can each contain fairly complicated, 
+polyphonic data, including as many program changes as youd like.
+
+Under the list of showing opcodes, is shown the current channel, and 
+two buttons labelled Ch - and Ch +. When you insert a new opcode, 
+it is installed in the current channel.
+
+NOTE!! You must use a contiguous set of channels, starting from 0. 
+For instance, a sequence with data in channels 0, 1, 2, 3, and 5 will 
+not play the data in channel 5.
+
+
+6.4) Inserting new opcodes
+----------------------------------
+
+To insert a new opcode, follow these steps:
+
+	1) Click on Ch - and Ch + until the channel you want the 
+	opcode to be in is shown. If it says, All Channels, click on
+	the All Channels item in the Display menu.
+	
+	2) Scroll to where you want the new opcode inserted. The new
+	opcode will have the same time stamp as the selected one, and
+	will be placed before it.
+
+	3) Pick the kind of opcode you want to add under the Insert 
+	New: heading, and click on it.
+	
+	4) If Gems didnt put the new opcode at the event time you 
+	wanted, double-click the new opcode(or click on Edit) and
+	edit the event time fields.
+
+
+6.5) Ordering of opcodes
+---------------------------------
+
+Within a single channel, opcodes are kept sorted by time stamp.  To 
+move an opcode, simply double-click on it to edit it, and change the 
+event time to the left of the opcode.
+
+In some instances, certain opcodes whose event time is the same 
+can effect each other, so their ordering is important. To change the 
+ordering of opcodes, select the opcode to move down, and click Slide 
+Dn.
+
+For Example:  
+
+	1 * 0	-	Program		0: Tom1
+	1 * 0	-	Loop Start	Endless
+		(notes)
+	8 * 0	-	Program		1: Tom2
+		(notes)
+	16 * 0	-	Loop End
+
+At beat 1, you put in a program change, and then start a 16-beat 
+loop that does another program change at beat 8. This loop will play 
+fine the first time through, playing both patches, but the second time 
+through, the entire 16 beats will be in the second patch. To fix this, 
+you need to click on the first program change opcode at beat 1, and 
+click on Slide Dn. This results in the following sequence:
+
+	1 * 0	-	Loop Start	Endless
+	1 * 0	-	Program		0: Tom1
+		(notes)
+	8 * 0	-	Program		1: Tom2
+		(notes)
+	16 * 0	-	Loop End
+
+
+6.6) Errors in a sequence
+---------------------------
+
+If you have an error in a sequence, the item to the right of View Err: 
+will explain it. Click on View Err: to see the place in the sequence 
+where the error occurred.
+
+NOTE!! The most frequent kind of error is a loop error, either a 
+missing loop end, or an extra loop end. Try using the Outline Mode 
+menu item to get a clearer picture of the loops you are putting in.
+
+
+7) The Sample Editor
+=======================
+
+
+7.1) Headers, trailers and signed/unsigned
+---------------------------------------------
+
+The Sample Editor lets you set a few parameters to allow for 
+compatibilty with several file formats. This was thought to be 
+better than only supporting a fixed number of hard-wired formats. It 
+does require a little more work on your part, but its not too bad.
+Some file formats treat their 8-bit values as signed numbers 
+(rangingfrom -128 to 127), while others are unsigned (0 to 
+255.) If a sample you have just imported sounds awful in the middle, 
+you probably have this parameter set wrong. Click on the button to 
+the right of File Data: once and try it again.
+
+Almost all 8-bit sample file formats contain the sample data 
+embedded in some control information at the beginning and/or the 
+end. Gems allows you to specify how long the data at either(or both) 
+ends of the file is, so that it will not be played as part of the 
+sample.
+
+To cut off the first 256 bytes of a sample, for instance, change the 
+Header Length: field to 256. If the file also has 32 bytes of 
+unwanted data at the end, change the Trailer Length: field to 32. 
+There are, of course, no standards that apply here, so our best 
+reccomendation is to try a few different values for header and 
+trailer length until you are happy with the sample.
+At least one file format stores the sample data in blocks, with 
+control information placed every so often in the file. This type of 
+format is not very common, so Gems doesnt support it. If you find 
+that you have a large amount of distortion(clicks) in your sample, 
+check to see if your sample creator could make another file format 
+for you.
+
+
+7.2) Looping
+----------------
+
+Looping a sample means that the sample is divided into three 
+sections, which played in order would be the non-looped sample. 
+Gems plays the first section of the sample(from the beginning to the 
+Loop Start point), then starts repeating the middle section(from the 
+Loop Start point to the Loop End point) until the note is turned off. 
+The sample then continues playing from where it was to the end, as 
+though looping was off.
+
+A good example of how to use this feature is a drum roll followed by 
+a cymbal crash in a single, compact sample. The sample should be 
+made up of:
+
+	0	Initial attack of first drum sound
+	LS	A single drum sound
+	LE	Cymbal crash
+
+To play it, set the duration of the note opcode to be how long you 
+want the drum to roll for.
+
+To enable looping, click on the button to the right of Looped: until it 
+says Yes.
+
+
+7.3) Default playback frequency
+------------------------------------
+
+The Sample Editor lets you specify the basic playback frequency for 
+the data in the sample file. Gems will use this value unless you 
+override it with the Samp Rate opcode. Any information about the 
+intended playback rate stored as control information in the file is 
+ignored.
+
+NOTE!! The Samp Rate opcode effects the last selected patch only, 
+and is set back to the default when another Program change opcode 
+is processed in the same channel.
+
+
+7.4) Clipping at Note Off
+--------------------------
+
+Typically, samples are played starting at note on time and ending 
+when they run out of data. Occasionally you may want to be able to 
+stop playing a sample before it runs out of data(for instance, a very 
+long sample.) To accomplish this, click on the button to the right of 
+Clip @ Note Off: until it says Yes. When the note opcode duration 
+has passed, the sample is stopped. Looped samples are stopped at 
+note off no matter which section of the sample is playing.
+
+
+8) Opcodes
+============
+
+
+Opcode:			Note On
+Fields:			Note number (60=middle C=C4); duration
+MIDI equivalent:	Standard note-on/note-off pair
+Library routine:	gemsnoteon/gemsnoteoff
+Notes:			
+
+Opcode:			Program Change
+Fields:			Patch #
+MIDI equivalent:	Standard program change
+Library routine:	gemsprogchange
+Notes:			
+
+Opcode:			Modulator Change
+Fields:			Modulator #
+MIDI equivalent:	MIDI Controller #80 = Modulator #
+Library routine:	gemssetenv
+Notes:			Also triggers it if appropriate
+
+Opcode:			Modulator Trigger
+Fields:			Modulator Selection/Note On
+MIDI equivalent:	MIDI Controller #68 = Env Sel(127)
+			or Note On(0)
+Library routine:	gemsretrigenv
+Notes:			Default is Env Sel
+
+Opcode:			Loop Start
+Fields:			1-126/Endless Reps
+MIDI equivalent:	MIDI Controller #81 = Reps
+Library routine:		
+Notes:			
+
+Opcode:			Loop End
+Fields:			- none -
+MIDI equivalent:	MIDI Controller #81 = 0
+Library routine:		
+Notes:			
+
+Opcode:			Sustain Switch
+Fields:			On/Off
+MIDI equivalent:	MIDI Controller #64 = on(127), off(0)
+Library routine:	gemssustain
+Notes:			Default is off
+
+Opcode:			Tempo
+Fields:			40-167 BPM
+MIDI equivalent:	MIDI Controller #16 = Tempo-40
+Library routine:	gemssettempo
+Notes:			
+
+Opcode:			Mute/Unmute Channel
+Fields:			Channel 0-15
+MIDI equivalent:	MIDI Controller #18 = channel #(+16 for 
+			unmute)
+Library routine:	gemsmute
+Notes:			Channel in this sequence
+
+Opcode:			Priority
+Fields:			0-127
+MIDI equivalent:	MIDI Controller #19 = priority
+Library routine:	gemspriority	
+Notes:			Default is 0
+
+Opcode:			Pitch Bend
+Fields:			+/-x.xx semi-tones
+MIDI equivalent:	Standard pitch bend
+Library routine:	gemspitchbend
+Notes:			
+
+Opcode:			SFX Tempo
+Fields:			- none -
+MIDI equivalent:	MIDI Controller #70 = 0
+Library routine:		
+Notes:			Channel switches to 150 bpm
+
+Opcode:			Start Sequence
+Fields:			0-127
+MIDI equivalent:	MIDI Controller #82 = Sequence #
+Library routine:	gemsstartsong
+Notes:			
+
+Opcode:			Sample Playback Rate
+Fields:			Default/10.4/8.7/7.3/6.5/5.8/5.2
+MIDI equivalent:	MIDI Controller #71 = 4/5/6/7/8/9/10
+Library routine:		
+Notes:			Reset to default by program change
+
+

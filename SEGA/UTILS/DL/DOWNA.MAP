@@ -1,0 +1,11 @@
+
+ Start  Stop   Length Name               Class
+
+ 00000H 00000H 00000H DOWNA_TEXT         CODE
+ 00000H 000DCH 000DDH CSEG               CODE
+ 000DEH 000DEH 00000H _DATA              DATA
+ 000E0H 002F3H 00214H DSEG               FARDATA
+
+Program entry point at 0000:0000
+Warning: No stack
+

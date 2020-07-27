@@ -1,0 +1,100 @@
+MAKELOGO - source file converter program
+========================================
+
+Definitions:-
+
+ASSEMBLER = {SNASM | MICROTEC | SIERRA}
+FILENAME = MSDOS FILE SPECIFIER
+
+
+Invocation:-
+
+MAKELOGO /ASSEMBLER INFILE[.ANY]
+This will make a file which can be assembled by the 
+assembler specified.
+
+
+Overview:-
+
+Makelogo supports a range of file selection and inclusion
+operations, which are based on the C language pre-processor.
+Makelogo's INCLUDE is NOT nestable and any attempt to do so
+will result in an error when Makelogo is invoked. The string
+substitutions made with #DEFINE are NOT expanded recursively.
+
+The following operations are supported:-
+
+#CASEASM,#ENDCASE,#INCLUDE,#DEFINE
+
+Every command line must start with a hash (#) symbol and be
+followed immediately by the command word. Makelogo converts
+all characters from the hash to the first space character
+(or end of the line if there are no spaces) into upper case
+internally, so that it is not case sensitive to the keywords.
+Additionally, Makelogo does not copy lines beginning with a
+hash through to the output.
+Finally, for the SIERRA asembler, MAKELOGO strips all lines
+beginning with a semicolon (as the assembler complains
+about them!)
+
+
+Operations:-
+
+#CASEASM=ASMTYPE
+...
+#CASEASM=ASMTYPE
+...
+#CASEASM=ASMTYPE
+...
+#ENDCASE
+
+e.g.
+#CASEASM=SNASM
+	dc.b	'Assembled with SNASM',0
+#CASEASM=MICROTEC
+	dc.b	'Not assembled with SNASM or SIERRA',0
+#ENDCASE
+
+
+The '=' is important and ASMTYPE is any of the options
+in the ASSEMBLER set above. There may be more than one
+#CASEASM with the same ASMTYPE before an #ENDCASE, which
+is not checked for by Makelogo; in this case, all of
+the pieces of code after the matching #CASEASM and before
+either a non matching #CASEASM or an #ENDCASE, will be 
+copied to the output. An error will occur if an invalid
+assembler type is specified. #CASEASM cannot be nested.
+
+
+#INCLUDE FILENAME
+
+e.g.
+#INCLUDE data\snasm.dat
+
+The space seperator is required. The include file will now
+be scanned and any of the other operations in it will be
+obeyed (#INCLUDE will force an error) until the end of
+the include file is reached, where the main file will be
+resumed. An error will occur if the specified FILENAME
+cannot be found. #INCLUDE cannot be nested.
+
+
+#DEFINE string1 string2
+
+e.g.
+#DEFINE NAME SEGA LOGODEMO
+will replace every occurence of the 4 characters NAME
+with the 13 characters SEGA LOGODEMO
+
+The space seperators are required to delimit both ends of
+string1, which cannot contain spaces. Each occurence
+of string1 in a line not beginning with a hash will be
+substituted by string2. Note that every character in string1
+forms part of the string and it is delimited by spaces
+and that every character in string2 including spaces forms
+part of the string and that it is delimited by ' ' at the
+start and newline at the end. The search for string1 IS case
+sensitive, so for example, 'THIS' and 'This' are NOT the
+same string.
+
+

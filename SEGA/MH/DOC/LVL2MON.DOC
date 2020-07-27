@@ -1,0 +1,55 @@
+
+				Level 2 Monsters
+
+1. Carnivorous Dinosaur lizards & Venomous Snakes
+	Type: 2
+	Attacks: Dinosaur lizards bite, Snakes inject venom 
+            Attack Range: Close
+	Damage: 3 points of damage per hit
+	Speed: fast
+	# shots to kill: 3
+    BOSS: Killer Trees
+	Type: 4
+	Attacks: draining of life force
+	Attack Range: Far
+	Damage: 10 points for each branch
+            Speed: medium-fast
+	# shots to kill: 20 each to the roots
+ 
+2. Pterodactyls
+	Type: 1
+	Attacks: Bite
+	Attack Range: Close
+	Damage: 5 points per hit.
+	Speed: Very Fast
+	# shots to kill: 3
+    BOSS: Two-headed Mutant Pterodactyl
+	Type: 1
+	Attacks: Bites with both heads.
+	Attack Range: Close
+	Damage: 15 points per head
+	Speed: Very Fast
+	# shots to kill: 30 to inside mouth
+
+3. Tricerotops
+	Type: 1
+	Attacks: Horns
+	Attack Range: Close
+	Damage: 15 points per hit
+	Speed: Fast
+	# shots to kill: 7 or 3 to the eyes or knees.
+   BOSS: Tyranosaurus Rex
+	Type: 1
+	Attacks: Bite or tail whip
+	Attack Range: Close for bite, Far for tail
+	Damage: 25 for bite, 15 for tail
+	Speed: Fast
+	#: shots to kill: Can't be killed. Must be led over cliff.
+  
+     LEVEL BOSS: Mutated T-Rex/Man
+	Type: 1
+	Attacks: Barrels of Toxic Chemicals.
+	Attack Range: Very Far
+	Damage: 20 per hit
+	Speed: Very Fast
+	# shots to kill: 30 shots to the barrels he throws.

@@ -1,0 +1,161 @@
+
+Sierra Systems ASM68K 2.10     intshell.a            4/23/93 13:31  Page    1
+
+   1 T                          *
+   2 T                          *	File:		INTSHELL.A
+   3 T                          *
+   4 T                          *	Contains:	This file is the basic low memory stuff that a Genesis
+   5 T                          *		needs to have to handle exceptions.  It also specifies the
+   6 T                          *		required data at location $100 and the code to call the C
+   7 T                          *		routine shellmain().  Note: SRAM($ff0000-$ffffff) is erased
+   8 T                          *		and interrupts are enabled before calling shellmain().
+   9 T                          *	NOTE:		When a level 6 interrupt happens(VBL for Genesis),
+  10 T                          *		the C routine VBLinterrupt is called.
+  11 T                          *
+  12 T                          *	Written by:	Burt Sloane & Randel B. Reiss of Technopop
+  13 T                          *
+  14 T                          *	Copyright:	c 1990 by Sega of America, Inc., all rights reserved.
+  15 T                          *
+  16 T                          *	Change History:
+  17 T                          *
+  18 T                          *	To Do:
+  19 T                          *
+  20 T                          *
+  21 T                          * This is the basic page 0-2 code for any ROM that is mostly C
+  22 T                          *
+  23 T                          *	OPT	E,CASE
+  24 T                          
+  25 T                          	section	.text
+       SECTION: .text 
+  26 A                          	ORG	$0
+       SECTION: ORG SECTION (ORG 00000000)
+  27 A                          	XREF	_shellmain
+  28 A                          	XREF	_eraseVRAM
+  29 A                          	XREF	_eraseCRAM
+  30 A                          	XREF	_eraseVSRAM
+  31 A                          	XREF	_VBLinterrupt
+  32 A                          *
+  33 A 00000000 00FF 8000       	dc.l	$ff8000
+  34 A 00000004 0000 0212       	dc.l	start
+  35 A 00000008 0000_0060       	dcb.l	24,$200
+  36 A 00000068 0000 0200       	dc.l	excdeath		; ext int
+  37 A 0000006C 0000 0200       	dc.l	excdeath
+  38 A 00000070 0000 0200       	dc.l	excdeath		; H int
+  39 A 00000074 0000 0200       	dc.l	excdeath
+  40 A 00000078 0000 0202       	dc.l	VBLint			; V int
+  41 A 0000007C 0000_0084       	dcb.l	33,$200
+  42 A                          
+  43 A                          	ORG	$0100
+       SECTION: ORG SECTION (ORG 00000100)
+  44 A                          *
+  45 A 00000100 5345 4741 204D  	dc.b	'SEGA MEGA DRIVE '
+                4547 4120 4452 
+                4956 4520 
+  46 A 00000110 2843 2953 4547  	dc.b	'(C)SEGA 1990.MAY'
+                4120 3139 3930 
+                2E4D 4159 
+  47 A 00000120 5468 6520 5465  	dc.b	'The Technopop Game'
+                6368 6E6F 706F 
+                7020 4761 6D65 
+  48 A 00000132 0000_001E       	dcb.b	$150-*,' '
+  49 A                          	ORG	$0150
+       SECTION: ORG SECTION (ORG 00000150)
+  50 A 00000150 5465 6368 6E6F  	dc.b	'Technopop for overseas'
+                706F 7020 666F 
+
+Sierra Systems ASM68K 2.10     intshell.a            4/23/93 13:31  Page    2
+
+       SECTION: ORG SECTION (ORG 00000150)
+                7220 6F76 6572 
+                7365 6173 
+  51 A 00000166 0000_001A       	dcb.b	$180-*,' '
+  52 A                          	ORG	$0180
+       SECTION: ORG SECTION (ORG 00000180)
+  53 A 00000180 474D 2030 3030  	dc.b	'GM 00000000-00'
+                3030 3030 302D 
+                3030 
+  54 A 0000018E 1234            	dc.w	$1234
+  55 A 00000190 4F4A 2020 2020  	dc.b	'OJ              '
+                2020 2020 2020 
+                2020 2020 
+  56 A 000001A0 0000 0000       	dc.l	$00000000,$0007ffff,$00ff0000,$00ffffff
+  56 A 000001A4 0007 FFFF 
+  56 A 000001A8 00FF 0000 
+  56 A 000001AC 00FF FFFF 
+  57 A 000001B0 2020 2020 2020  	dc.l	'            '
+                2020 2020 2020 
+  58 A 000001BC 2020 2020 2020  	dc.l	'            '
+                2020 2020 2020 
+  59 A 000001C8 5465 6368 6E6F  	dc.b	'Technopop writes GREAT games.'
+                706F 7020 7772 
+                6974 6573 2047 
+                5245 4154 2067 
+                616D 6573 2E 
+  60 A 000001E5 0000_000B       	dcb.b	$1f0-*,' '
+  61 A                          	ORG	$01f0
+       SECTION: ORG SECTION (ORG 000001f0)
+  62 A 000001F0 4A55 4520 2020  	dc.b	'JUE             '
+                2020 2020 2020 
+                2020 2020 
+  63 A                          *
+  64 A                          	ORG	$0200
+       SECTION: ORG SECTION (ORG 00000200)
+  65 A 00000200                 excdeath
+  66 A 00000200 60FE            	bra.s	excdeath
+  67 A                          *
+  68 A 00000202                 VBLint
+  69 A 00000202 48E7 C0C0       	movem.l	a0/a1/d0/d1,-(a7)
+  70 A 00000206 4EB9 0000'0000' 	jsr	_VBLinterrupt
+  71 A 0000020C 4CDF 0303       	movem.l	(a7)+,a0/a1/d0/d1
+  72 A 00000210 4E73            	rte
+  73 A                          *
+  74 A 00000212                 start
+  75 A 00000212 1039 00A1 0000  	move.b	$a10000,d0		; SEGA security code
+  76 A 00000218 0200 000F       	and.b	#$0f,d0			; check version number
+  77 A 0000021C 670A            	beq.s	securityOK		; OK
+  78 A 0000021E 23FC 5345 4741  	move.l	#'SEGA',$a14000		; no, do this??
+                00A1 4000 
+  79 A 00000228                 securityOK
+  80 A                          *
+  81 A                          * erase SRAM
+  82 A 00000228 207C 00FF 0000  	move.l	#$00ff0000,a0		; start at ff0000
+  83 A 0000022E 303C 3FFF       	move.w	#$3fff,d0		; 16k - 1 longs
+  84 A 00000232                 eraseloop
+  85 A 00000232 20FC 0000 0000  	move.l	#0,(A0)+		; write it
+  86 A 00000238 51C8 FFF8       	dbra	d0,eraseloop
+  87 A                          *
+  88 A                          * call main()
+  89 A 0000023C 027C F8FF       	and.w	#$f8ff,sr		; enable interrupts
+
+Sierra Systems ASM68K 2.10     intshell.a            4/23/93 13:31  Page    3
+
+       SECTION: ORG SECTION (ORG 00000200)
+  90 A 00000240 4EB9 0000'0000' 	jsr	_shellmain
+  91 A                          *
+  92 A 00000246                 here
+  93 A 00000246 60FE            	bra.s	here
+  94 A                          *
+  95 A                          *
+  96 A 00000248                 	END
+
+Total Errors:      0
+Total Warnings:    0
+
+
+SYMBOL TABLE
+
+Value     Section/Type  Name
+
+00000202  ABSOLUTE      VBLint
+00000232  ABSOLUTE      eraseloop
+00000200  ABSOLUTE      excdeath
+00000246  ABSOLUTE      here
+00000228  ABSOLUTE      securityOK
+00000212  ABSOLUTE      start
+
+          EXTERNAL      _VBLinterrupt
+          EXTERNAL      _eraseCRAM
+          EXTERNAL      _eraseVRAM
+          EXTERNAL      _eraseVSRAM
+          EXTERNAL      _shellmain
+

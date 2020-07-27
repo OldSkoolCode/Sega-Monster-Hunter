@@ -1,0 +1,1946 @@
+;*************************************************************************
+;*                                USER CODE                              *
+;*************************************************************************
+
+Z80Note		equ	Z80Base+5	;semitone (0..11)
+Z80Octave	equ	Z80Base+6	;octave (0..7)
+Z80Play		equ	Z80Base+7	;start flag
+Z80Stop		equ	Z80Base+8	;stop flag
+
+HScrollSlave	equ	BigBuffer+1024
+VScrollSlave	equ	HScrollSlave+1024
+
+SPACE		equ	32
+
+;*************************************************************************
+;*                          ONCE OFF INITIALIZATION                      *
+;*************************************************************************
+
+User_Init
+	move.l	#12379,rand	;seed random number generator
+	move.l	#$456,rand+4
+	move.w	#0,selected	;set first menu selection
+	rts
+
+;*************************************************************************
+;*                        MACROS FOR CONSOLE ROUTINE                     *
+;*************************************************************************
+
+alignodd	macro	;to align PC to odd boundary
+	ifeq 	*&1
+	dc.b	1
+	endc
+	endm
+
+c_stop	macro		;to tell console to stop
+	alignodd
+	dc.b	0
+	endm
+
+c_scr	macro		;to set console active screen
+	alignodd
+	dc.b	2
+	dc.w	\1
+	endm
+
+c_pos	macro		;to set console x and y positions
+	dc.b	3,\1,\2
+	endm
+
+c_attr	macro		;to set console character attribute
+	alignodd
+	dc.b	4
+	dc.w	\1
+	endm
+
+c_call	macro		;to call code from console
+	alignodd
+	dc.b	5
+	dc.l	\1
+	endm
+
+;*************************************************************************
+;*                             CONSOLE ROUTINE                           *
+;*************************************************************************
+
+console
+	st	VDPLock		;do not allow interrupts to use VDP
+	move.l	#console,-(sp)	;stack return address
+	moveq	#0,d0		;clear d0
+	move.b	(a0)+,d0	;get command (or character code) byte
+	cmp.b	#SPACE,d0	;compare with space character
+	bhs.s	co_printchar	;print a character if space or more
+	add.w	d0,d0		;*2
+	add.w	d0,d0		;*4 (long word index)
+	move.l	co_commands(pc,d0.w),-(sp)	;stack command address
+	rts			;EXECUTE command
+co_printchar
+	add.w	chrattr,d0	;add chaarcter attribute
+	move.w	d0,VDPData	;put cell attribute in cell map (VRAM)
+	rts
+co_commands
+	dc.l	co_stop,co_skip,co_screen,co_posxy
+	dc.l	co_attr,co_call
+co_stop
+	addq.w	#4,sp		;strip return address (CONSOLE)
+	sf	VDPLock		;flag interrupt routine can use VDP
+	rts			;return from console
+co_screen
+	move.w	(a0)+,scrbase	;set screen base address
+co_skip
+	rts
+co_posxy
+	moveq	#0,d0		;clear d0
+	moveq	#0,d1		;clear d1
+	move.b	(a0)+,d0	;get x (byte)
+	move.b	(a0)+,d1	;get y (byte)
+	mulu	CellMapCols,d1	;scale by width of scroll
+	add.w	d1,d0		;add x to form index
+	add.w	d0,d0		;indexing words (cell map)
+	add.w	scrbase,d0	;add base of screen
+	jmp	SetVRAMWrite	;set the screen address up in VDP
+co_attr
+	move.w	(a0)+,d0	;get character attribute
+	sub.w	#SPACE,d0	;subtract first character code in character set
+	move.w	d0,chrattr	;save character attribute
+	rts
+co_call
+	move.l	(a0)+,a1	;get code address
+	move.l	a0,-(sp)	;save console PC
+	jsr	(a1)		;call code
+	move.l	(sp)+,a0	;get console PC
+	rts			;back to console
+
+;*************************************************************************
+;*                       RANDOM NUMBER GENERATOR                         *
+;*************************************************************************
+;uses a standard feedback shifter algorithm
+
+random
+	movem.l	d1-d2,-(sp)	;standard feedback shift algorithm
+	movem.l	rand,d0-d1
+	add.w	d0,d0
+	move.w	d0,d2
+	addx.w	d1,d0
+	move.w	d2,d1
+	swap	d0
+	swap	d1
+	move.w	d0,d2
+	addx.w	d1,d0
+	move.w	d2,d1
+	swap	d0
+	swap	d1
+	movem.l	d0-d1,rand
+	movem.l	(sp)+,d1-d2
+	rts	
+
+;*************************************************************************
+;*      CLEAR HORIZONTAL SCROLL RAM AND VERTICAL SCROLL REGISTERS        *
+;*************************************************************************
+
+ClearScrolls
+	jsr	ClearVSRAM	;clear virtucal scroll RAM (VSRAM)
+	jmp	ClearHSRAM	;clear horizontal scroll RAM (VRAM)
+
+;*************************************************************************
+;*            CLEAR CELL MAPS (SET THEM TO INDEX BLANK)                  *
+;*************************************************************************
+
+ClearCellMaps
+	move.w	#ScrollA,d0	;address of cell map A (scroll)
+	jsr	ClearCellMap	;clear map
+	move.w	#ScrollB,d0	;address of cell map B (scroll)
+	jmp	ClearCellMap	;clear map
+
+;*************************************************************************
+;*                        GENERAL SCREEN EXIT ROUTINE                    *
+;*************************************************************************
+
+startkey
+	testhit	KCodeStart	;start pressed? (at some time)
+	beq.s	sk_done		;no so skip
+	move.w	#Logo_Screen,NewScreen	;want logo again
+sk_done	rts
+
+;*************************************************************************
+;*              SET UP SPRITES TO BE USED FOR STRING PRINTING            *
+;*************************************************************************
+
+spritechars
+	moveq	#0,d1
+	move.b	(a0)+,d1
+	beq.s	sc_done
+	move.w	d0,-(sp)	;load cell address
+	move.l	a0,-(sp)
+	sub.w	#SPACE,d1
+	lsl.w	#3,d1	;8 bytes per character
+	lea	AsciiChars,a0
+	add.w	d1,a0	;character pointer
+	moveq	#1,d1	;characters
+	moveq	#15,d2	;foreground colour
+	moveq	#8,d3	;background colour
+	jsr	LoadChars	;load characters
+	move.l	(sp)+,a0
+	move.w	(sp)+,d0
+	addq.w	#1,d0
+	bra.s	spritechars
+sc_done	
+	move.w	#SpriteAttr,d0
+	moveq	#endtextsprs-textsprites,d1
+	lea	textsprites(pc),a0
+	jmp	CopyToVRAM
+
+textsprites
+	dc.w	$80+5*8,%1100<<8+1,130+Pal0+Pri,$80+10*8
+	dc.w	$80+5*8,%1100<<8+2,134+Pal0+Pri,$80+14*8
+	dc.w	$80+5*8,%1100<<8+3,138+Pal0+Pri,$80+18*8
+	dc.w	$80+5*8,%1100<<8+4,142+Pal0+Pri,$80+22*8
+	dc.w	$80+5*8,%1100<<8+5,146+Pal0+Pri,$80+26*8
+
+	dc.w	$80+22*8,%1100<<8+6,150+Pal1+Pri,$80+4*8
+	dc.w	$80+22*8,%1100<<8+7,154+Pal1+Pri,$80+8*8
+	dc.w	$80+22*8,%1100<<8+8,158+Pal1+Pri,$80+12*8
+	dc.w	$80+22*8,%1100<<8+9,162+Pal1+Pri,$80+16*8
+	dc.w	$80+22*8,%1100<<8+10,166+Pal1+Pri,$80+20*8
+	dc.w	$80+22*8,%1100<<8+11,170+Pal1+Pri,$80+24*8
+	dc.w	$80+22*8,%1100<<8+12,174+Pal1+Pri,$80+28*8
+	dc.w	$80+22*8,%1000<<8+0,178+Pal1+Pri,$80+32*8
+endtextsprs
+
+;*************************************************************************
+;*                                MENU CODE                              *
+;*************************************************************************
+
+Menu_Init
+	moveq	#16,d0		;16 frames
+	jsr	FadeOut		;fade out the logo
+
+	jsr	ClearVRAM	;start afresh (VDP still set up though)
+	bsr	ClearScrolls	;clear horizontal and vertical scrolls
+
+	moveq	#1,d0 		;load cell address
+	moveq	#96,d1		;characters
+	moveq	#15,d2		;foreground colour
+	moveq	#8,d3		;background colour
+	lea	AsciiChars,a0	;data pointer
+	jsr	LoadChars	;load characters
+
+	lea	palette1,a0	;data pointer
+	jsr	SetPalette	;set up palette buffer
+
+	lea	titlestr,a0	;point at text data
+	bsr	console		;write data
+
+	move.w	#0,twinklecol	;set initial colour for cycling
+	move.w	#$011,twinklech	;set cycle value
+	
+	moveq	#16,d0		;16 frames
+	jsr	FadeIn		;fade in menu
+ 
+	rts
+	
+titlestr
+	c_scr	ScrollA
+	c_attr	1+Pal0
+	c_pos	4,5
+	dc.b	'Hardware and Logo Demonstration!'
+	c_attr	1+Pal2
+	c_pos	9,9
+	dc.b	'Select a demonstration'
+	c_pos	7,10
+	dc.b	'by using UP/DOWN and START'
+	c_attr	1+Pal0
+	c_pos	5,22
+	dc.b	'written by Andy Onions 1991/2.'
+	c_pos	5,23
+	dc.b	'(Realtime Games Software Ltd.)'
+optionsstr
+	c_pos	17,13
+	c_call	hilight0
+	dc.b	'SPRITE'
+	c_pos	17,15
+	c_call	hilight1
+	dc.b	'SCROLL'
+	c_pos	17,17
+	c_call	hilight2
+	dc.b	'WINDOW'
+	c_pos	17,19
+	c_call	hilight3
+	dc.b	'SOUND'
+	c_stop
+
+hilight0
+	moveq	#0,d0
+	bra.s	hijoin
+hilight1
+	moveq	#1,d0
+	bra.s	hijoin
+hilight2
+	moveq	#2,d0
+	bra.s	hijoin
+hilight3
+	moveq	#3,d0
+hijoin	move.w	#Pal1+1-SPACE,chrattr	;set console attribute
+	cmp.w	selected,d0	;see if this entry to be hilighted
+	beq.s	h_done		;yes so done
+	move.w	#Pal0+1-SPACE,chrattr	;else set hilight console attribute
+h_done	rts
+
+palette1
+	dc.w	0,16
+	dc.w	$000	;black (transparent)
+	dc.w	$222	;very dark gray
+	dc.w	$444	;dark grey
+	dc.w	$666	;medium dark grey
+	dc.w	$888	;medium light grey
+	dc.w	$AAA	;light grey
+	dc.w	$CCC	;very light grey
+	dc.w	$EEE	;white
+	dc.w	$000	;black background 0
+	dc.w	$00E	;red
+	dc.w	$0E0	;green
+	dc.w	$0EE	;yellow
+	dc.w	$E00	;blue
+	dc.w	$E0E	;magenta
+	dc.w	$EE0	;cyan
+	dc.w	$EEE	;white foreground 0
+	dc.w	24,1
+	dc.w	$E00	;background 1
+	dc.w	31,1
+	dc.w	$EEE	;foreground 1
+	dc.w	40,1
+	dc.w	$000	;background 2
+	dc.w	47,1
+	dc.w	$000	;foreground 2
+	dc.w	-1
+	
+Menu_Poll
+	move.w	twinklecol,d1	;get colour
+	add.w	twinklech,d1	;update it
+	and.w	#$0ff,d1	;mask green and red only (YELLOW)
+	beq.s	mp_change	;skip to negate if 0
+	cmp.w	#$0ff,d1	;check highes value
+	bne.s	mp_write	;skip to write if not
+mp_change
+	neg.w	twinklech	;switch cycle direction
+mp_write
+	move.w	d1,twinklecol	;save new colour
+	tst.b	VDPLock		;check VDP can be used on interrupts
+	bmi.s	mp_locked	;skip if not
+	moveq	#47*2,d0	;foreground 2
+	jsr	SetCRAMWrite	;write to CRAM
+	move.w	d1,VDPData	;write new colour to VRAM
+mp_locked
+	rts
+
+Menu_Call
+	moveq	#-1,d0		;assume up
+	testhit	KCodeUp		;up pressed? (at some time)
+	bne.s	mc_move		;yes so move
+	moveq	#1,d0		;assume down
+	testhit	KCodeDown	;down pressed?
+	bne.s	mc_move		;yes so move
+	testhit	KCodeStart	;start pressed?
+	beq.s	mc_done		;no so done
+	move.w	selected,d0	;get menu selection
+	add.w	#Sprite_Screen,d0	;add base screen number
+	move.w	d0,NewScreen	;set new screen
+	add.w	#1,selected	;force move down
+	and.w	#3,selected	;wrap (0..3)
+mc_done
+	rts			;NO screen update
+mc_move	add.w	d0,selected	;update selection
+	and.w	#3,selected	;wrap (0..3)
+	lea	optionsstr,a0	;point to console data
+	bsr	console		;affect hardware
+	rts
+
+;*************************************************************************
+;*                          SPRITE DEMONSTRATION                         *
+;*************************************************************************
+
+spr_vpos	equ	0	;data structure for sprite table hardware
+spr_link	equ	2
+spr_addr	equ	4
+spr_hpos	equ	6
+
+Sprite_Init
+	moveq	#16,d0	 	;16 frames
+	jsr	FadeOut		;fade out (menu)
+
+	bsr	ClearCellMaps	;clear all cell maps
+	bsr	ClearScrolls	;clear vertical and horizontal scrolls
+
+	move.w	#100*32,d0	;VRAM address of character 100
+	move.w	#endsmiles-smilesprites,d1	;length of sprite data
+	lea	smilesprites,a0	;point to sprite data
+	jsr	CopyToVRAM	;load sprite data into VRAM
+
+	move.l	#8<<24+6<<16+4<<8+2,SpriteQtys	;set up a table of quantities of sprites required (sums to 20)
+	lea	BigBuffer,a0	;point to work RAM buffer space
+	lea	20*8(a0),a2	;point at another buffer allowing for 20 sprites in first
+	moveq	#1,d0		;link and count
+
+si_makesprs
+	move.w	d0,-(sp)	;save count/link
+	bsr	random		;get a random number
+	and.w	#$ff,d0		;mask byte
+	add.w	#$80,d0		;add base x of sprite positions (on screen)
+	move.w	d0,spr_hpos(a0)	;random x
+	bsr	random 		;get random number
+	and.w	#$7f,d0		;mask low 7 bits
+	add.w	#$80,d0		;add base y of sprite positions (on screen)
+	move.w	d0,spr_vpos(a0)	;random y
+	bsr	random		;get random number
+	lea	SpriteQtys,a1	;point to quantities table
+si_newsize
+	and.w	#3,d0	;0..3
+	tst.b	(a1,d0.w)	;any left?
+	bne.s	si_sizeok	;yes
+	addq.w	#1,d0		;try next size
+	bra.s	si_newsize
+si_sizeok
+	subq.b	#1,(a1,d0.w)	;one less of this size
+	add.w	d0,d0		;index word tables
+	move.w	si_sprsizes(pc,d0.w),d1	;size
+	move.b	1(sp),d1	;link
+	move.w	d1,spr_link(a0)	;size and link
+	move.w	si_genaddrs(pc,d0.w),spr_addr(a0)	;palette 0, no flips, no pri
+	addq.w	#8,a0		;next sprite
+	bsr	random
+	asr	#6,d0		;make sign_1.8 numbers (i.e. +/-1.999)
+	move.w	d0,d1
+	bsr	random
+	asr	#6,d0		;make sign_1.8 numbers (i.e. +/-1.999)
+	move.w	d0,(a2)+	;random dx
+	move.w	d1,(a2)+	;random dy
+	clr.l	(a2)+		;fractional x and y position (start at 0)
+	move.w	(sp)+,d0	;link/count
+	beq.s	si_done		;just done final link
+	addq.w	#1,d0		;next link
+	cmp.w	#20,d0		;last sprite
+	bne.s	si_notlast	;skip if not
+	moveq	#0,d0		;final link
+si_notlast
+	bra	si_makesprs	;continue till done
+
+si_done
+	lea	sprtitlestr,a0	;data ptr
+	bsr	console		;title/instructions
+
+	bsr	Sprite_Poll	;physically display all the sprites
+
+	moveq	#16,d0		;16 frames
+	jmp	FadeIn		;fade sprites in
+	
+si_genaddrs
+	dc.w	100,101,105,114		;start cells for each sprite
+si_sprsizes
+	dc.w	%0000<<8,%0101<<8,%1010<<8,%1111<<8	;sizes of each sprite (no link data)
+
+sprtitlestr
+	c_scr	ScrollA		;text on scroll A (could use B)
+	c_attr	1+Pal0		;sprites have higher priority
+	c_pos	10,5
+	dc.b	'Sprite Demonstration'
+	c_attr	1+Pal1+Pri	;sprites have lower priority
+	c_pos	4,22
+	dc.b	'Press START to quit this screen'
+	c_stop
+
+
+Sprite_Call
+	jsr	WaitFrame	;limit frame rate (and video sync)
+	lea	BigBuffer,a0	;point at sprite slave data
+	lea	20*8(a0),a1	;point at corresponding movement data
+	moveq	#20-1,d7	;count
+
+sc_movesprs
+	move.b	(a1),d0		;get dx integer
+	ext.w	d0		;sign extend
+	move.b	1(a1),d1	;get dx fraction
+	lsl.w	#8,d1		;get in top byte of word
+	add.w	d1,4(a1)	;add fraction
+	move.w	spr_hpos(a0),d1	;get x
+	addx.w	d1,d0		;add integer (and fractional carry)
+	cmp.w	#$80-32,d0	;left x
+	blt.s	sc_bouncex	;bounce if less than
+	cmp.w	#$80+320+32,d0	;right x
+	ble.s	sc_nobouncex	;no bounce if less than or equal
+sc_bouncex
+	neg.w	(a1)		;bounce (negate dx)
+sc_nobouncex
+	move.w	d0,spr_hpos(a0)	;update new x
+
+	move.b	2(a1),d0	;get dy integer
+	ext.w	d0
+	move.b	3(a1),d1	;get dy fraction
+	lsl.w	#8,d1
+	add.w	d1,6(a1)
+	move.w	spr_vpos(a0),d1
+	addx.w	d1,d0
+	cmp.w	#$80-32,d0	;top y
+	blt.s	sc_bouncey
+	cmp.w	#$80+200+32,d0	;bottom y
+	ble.s	sc_nobouncey
+sc_bouncey
+	neg.w	2(a1)
+sc_nobouncey
+	move.w	d0,spr_vpos(a0)	;identical code for y
+
+	addq.w	#8,a0		;next sprite slave
+	addq.w	#8,a1		;next movement data
+	dbra	d7,sc_movesprs	;done another sprite
+
+	bra	startkey	;see if START been pressed
+
+
+Sprite_Poll
+	move.w	#SpriteAttr,d0	;VRAM sprite attribute address
+	move.w	#20*8,d1	;bytes (8 bytes per sprite - 20 sprites)
+	lea	BigBuffer,a0	;point to sprite data (in work RAM buffer)
+	jmp	CopyToVRAM	;copy slaves to VRAM to physically show sprites
+
+;*************************************************************************
+;*                          SCROLL DEMONSTRATION                         *
+;*************************************************************************
+
+Scroll_Init
+	moveq	#16,d0		;16 frames
+	jsr	FadeOut		;fade out (menu)
+
+	bsr	ClearCellMaps	;clear cell maps
+	bsr	ClearScrolls	;clear scroll registers
+
+	move.w	#130,d0		;cell address
+	lea	scrtitlestr,a0	;string pointer
+	bsr	spritechars	;load characters for sprites
+
+	move.w	#0,scrollmode	;initialize mode for call
+
+	lea	HScrollSlave,a0	;point to horizontal scroll slaves
+	moveq	#0,d0		;clear d0
+	move.w	#(1024+80)/4-1,d1 ;length of slaves
+sci_clr
+	move.l	d0,(a0)+	;clear scroll
+	dbra	d1,sci_clr	;do all lines
+
+	lea	sci_palette(pc),a0 ;data pointer
+	jsr	SetPalette	;set up palette buffer
+
+	lea	sci_scrollstr(pc),a0 ;point to text
+	bsr	console		;print info
+
+	moveq	#16,d0		;16 frames
+	jmp	FadeIn		;fade in
+
+sci_palette
+	dc.w	40,1
+	dc.w	$00E	;background 2 (RED)
+	dc.w	47,1
+	dc.w	$EEE	;foreground 2 (WHITE)
+	dc.w	56,1
+	dc.w	$EE0	;background 3 (CYAN)
+	dc.w	63,1
+	dc.w	$E00	;foreground 3 (BLUE)
+	dc.w	-1
+	
+sci_scrollstr
+	c_scr	ScrollA	;text on scroll A
+	c_attr	1+Pal2
+	c_pos	1,8
+	dc.b	'All of the white on red   '
+	c_pos	1,9
+	dc.b	'text is on SCROLLA,       '
+	c_pos	1,10
+	dc.b	'which has higher priority '
+	c_pos	1,11
+	dc.b	'than the blue on cyan     '
+	c_pos	1,12
+	dc.b	'text, which is on SCROLLB '
+	c_scr	ScrollB
+	c_attr	1+Pal3
+	c_pos	14,14
+	dc.b	'This text is on SCROLLB,  '
+	c_pos	14,15
+	dc.b	'which can be scrolled in- '
+	c_pos	14,16
+	dc.b	'dependently of SCROLLA    '
+	c_pos	14,17
+	dc.b	'Both scrolls can be moved '
+	c_pos	14,18
+	dc.b	'by pixels in any direction'
+	c_pos	14,19
+	dc.b	'The other text use sprites'
+	c_pos	14,20
+	dc.b	'and have highest priority '
+	c_stop
+
+
+Scroll_Call
+	bsr	startkey	;see if user abort
+	move.w	scrollmode,d0	;get mode
+	move.l	scc_modes(pc,d0.w),-(sp) ;stack respective routine address
+	rts			;call routine
+scc_modes
+	dc.l	scc_wait,scc_textA,scc_wait,scc_allA
+	dc.l	scc_wait,scc_textA2,scc_wait,scc_allA2
+	dc.l	scc_wait,scc_textA3,scc_wait,scc_allA3
+	dc.l	scc_wait,scc_textA2,scc_wait,scc_allA4
+	dc.l	scc_wait,scc_textB,scc_wait,scc_allB
+	dc.l	scc_wait,scc_textboth,scc_wait,scc_both
+	dc.l	scc_wait,scc_cellmode,scc_wait,scc_cellA
+	dc.l	scc_wait,scc_cellBtext,scc_wait,scc_cellB
+	dc.l	scc_wait,scc_textind,scc_wait,scc_ind
+	dc.l	scc_wait,scc_textboth,scc_wait,scc_cellboth
+	dc.l	scc_wait,scc_linemode,scc_wait,scc_line
+	dc.l	scc_wait,scc_change,scc_wait,scc_both
+	dc.l	scc_wait,scc_restart
+
+scc_wait
+	moveq	#30,d0
+	jsr	WaitFrames	;wait 1/2sec
+	addq.w	#4,scrollmode	;next mode
+	rts
+
+scc_textA
+	lea	scc_allAstr(pc),a0 ;point at data
+	bsr	console		;print
+	move.w	#256,scrolltime	;frames to wait
+scc_donext
+	addq.w	#4,scrollmode	;next mode
+	rts
+scc_allAstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'All of SCROLLA horizontally'
+	c_stop
+
+scc_allA
+	jsr	WaitFrame	;video sync
+	addq.w	#2,HScrollSlave	;scroll
+	subq.w	#1,scrolltime	;done frame
+	beq.s	scc_donext	;next mode if done
+	rts
+
+scc_textA2
+	lea	scc_allAstr2(pc),a0 ;point at data
+	bsr	console		;print
+	move.w	#128,scrolltime	;time
+	addq.w	#4,scrollmode	;next
+	rts
+scc_allAstr2
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'and back again!'
+	c_attr	0+Pal0
+	dc.b	'             '
+	c_stop
+
+scc_allA2
+	jsr	WaitFrame	;sync
+	subq.w	#4,HScrollSlave	;scroll
+	subq.w	#1,scrolltime	;done
+	beq	scc_donext	;next
+	rts
+
+scc_textA3
+	lea	scc_allAstr3(pc),a0
+	bsr	console
+	move.w	#256,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_allAstr3
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'now vertically'
+	c_attr	0+Pal0
+	dc.b	' '
+	c_stop
+
+scc_allA3
+	jsr	WaitFrame
+	subq.w	#1,HScrollSlave+1024
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_allA4
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave+1024
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_textB
+	lea	scc_allBstr(pc),a0
+	bsr	console
+	move.w	#256,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_allBstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	0+Pal0
+	dc.b	'               '
+	c_scr	ScrollB
+	c_pos	1,0
+	c_attr	1+Pal3
+	dc.b	'B is independent!'
+	c_stop
+
+scc_allB
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave+2
+	subq.w	#1,HScrollSlave+1024+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+	
+scc_textboth
+	lea	scc_bothstr(pc),a0
+	bsr	console
+	move.w	#512,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_bothstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'BOTH '
+	c_attr	0+Pal0
+	dc.b	'         '
+	c_scr	ScrollB
+	c_pos	1,0
+	dc.b	'     '
+	c_attr	1+Pal3
+	dc.b	'TOGETHER'
+	c_attr	0+Pal0
+	dc.b	'           '
+	c_stop
+
+scc_both
+	jsr	WaitFrame
+	addq.w	#4,HScrollSlave
+	subq.w	#1,HScrollSlave+1024
+	subq.w	#2,HScrollSlave+2
+	addq.w	#3,HScrollSlave+1024+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_cellmode
+	move.b	VDP_ModeSet3,d0
+	and.b	#%11111000,d0
+	or.b	#%110,d0
+	move.b	d0,VDP_ModeSet3
+	st	VDPLock		;lock VDP (no access by interrupts 'poll')
+	jsr	SetVDPRegs	;set 1 cell horizontal and 2 cell vertical scroll mode
+	sf	VDPLock		;interrupt access ok now
+	lea	scc_cellAstr(pc),a0
+	bsr	console
+	move.w	#512,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_cellAstr
+	c_scr	ScrollB
+	c_pos	6,0
+	c_attr	0+Pal0
+	dc.b	'       '
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'Horizontal 1 cell'
+	c_stop
+
+scc_cellA
+	jsr	WaitFrame
+	addq.w	#1,HScrollSlave+8*32
+	subq.w	#2,HScrollSlave+9*32
+	addq.w	#3,HScrollSlave+10*32
+	subq.w	#1,HScrollSlave+11*32
+	addq.w	#2,HScrollSlave+12*32
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_cellBtext
+	lea	scc_cellBstr(pc),a0
+	bsr	console
+	move.w	#256,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_cellBstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	0+Pal0
+	dc.b	'                        '
+	c_scr	ScrollB
+	c_pos	1,0
+	c_attr	1+Pal3
+	dc.b	'Vertical 2 cell'
+	c_stop
+
+scc_cellB
+	jsr	WaitFrame
+	addq.w	#1,HScrollSlave+1024+8*4+2
+	subq.w	#2,HScrollSlave+1024+9*4+2
+	addq.w	#3,HScrollSlave+1024+10*4+2
+	subq.w	#1,HScrollSlave+1024+11*4+2
+	addq.w	#2,HScrollSlave+1024+12*4+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+	
+scc_textind
+	lea	scc_indstr(pc),a0
+	bsr	console
+	move.w	#512,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_indstr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'Both '
+	c_scr	ScrollB
+	c_pos	1,0
+	c_attr	0+Pal0
+	dc.b	'     '
+	c_attr	1+Pal3
+	dc.b	'Independent'
+	c_stop
+
+scc_ind
+	jsr	WaitFrame
+	addq.w	#1,HScrollSlave+8*32
+	subq.w	#2,HScrollSlave+9*32
+	addq.w	#3,HScrollSlave+10*32
+	subq.w	#1,HScrollSlave+11*32
+	addq.w	#2,HScrollSlave+12*32
+	addq.w	#1,HScrollSlave+1024+8*4+2
+	subq.w	#2,HScrollSlave+1024+9*4+2
+	addq.w	#3,HScrollSlave+1024+10*4+2
+	subq.w	#1,HScrollSlave+1024+11*4+2
+	addq.w	#2,HScrollSlave+1024+12*4+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_cellboth
+	jsr	WaitFrame
+	addq.w	#1,HScrollSlave+8*32
+	subq.w	#2,HScrollSlave+9*32
+	addq.w	#3,HScrollSlave+10*32
+	subq.w	#1,HScrollSlave+11*32
+	addq.w	#2,HScrollSlave+12*32
+	addq.w	#1,HScrollSlave+8*32+2
+	subq.w	#2,HScrollSlave+9*32+2
+	addq.w	#3,HScrollSlave+10*32+2
+	subq.w	#1,HScrollSlave+11*32+2
+	addq.w	#2,HScrollSlave+12*32+2
+	addq.w	#1,HScrollSlave+1024+8*4
+	subq.w	#2,HScrollSlave+1024+9*4
+	addq.w	#3,HScrollSlave+1024+10*4
+	subq.w	#1,HScrollSlave+1024+11*4
+	addq.w	#2,HScrollSlave+1024+12*4
+	addq.w	#1,HScrollSlave+1024+8*4+2
+	subq.w	#2,HScrollSlave+1024+9*4+2
+	addq.w	#3,HScrollSlave+1024+10*4+2
+	subq.w	#1,HScrollSlave+1024+11*4+2
+	addq.w	#2,HScrollSlave+1024+12*4+2
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+	
+scc_linemode
+	move.b	VDP_ModeSet3,d0
+	or.b	#%111,d0
+	move.b	d0,VDP_ModeSet3
+	st	VDPLock		;lock VDP
+	jsr	SetVDPRegs	;set 1 cell horizontal and 2 cell vertical scroll mode
+	sf	VDPLock		;unlock VDP
+	lea	scc_linestr(pc),a0
+	bsr	console
+	move.w	#512,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_linestr
+	c_scr	ScrollB
+	c_pos	6,0
+	c_attr	0+Pal0
+	dc.b	'        '
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal2
+	dc.b	'Horizontal 1 line scroll'
+	c_stop
+
+scc_line
+	jsr	WaitFrame	;sync
+	lea	HScrollSlave+8*32,a0 ;point at slaves
+	moveq	#5*8-1,d0	;count
+scc_scroll40
+	move.w	d0,d1
+	and.w	#7,d1
+	lsl.w	#5,d1
+	lsl.w	#8,d1
+	asr.w	#5,d1
+	asr.w	#8,d1
+	add.w	d1,(a0)
+	addq.w	#4,a0
+	dbra	d0,scc_scroll40
+	lea	HScrollSlave+14*32+2,a0
+	moveq	#7*8-1,d0	
+scc_scroll56
+	move.w	d0,d1
+	and.w	#3,d1
+	addq.w	#2,d1
+	add.w	d1,(a0)
+	addq.w	#4,a0
+	dbra	d0,scc_scroll56
+	subq.w	#1,scrolltime
+	beq	scc_donext
+	rts
+
+scc_change
+	move.b	VDP_ModeSet3,d0
+	and.b	#%11111000,d0
+	move.b	d0,VDP_ModeSet3
+	st	VDPLock
+	jsr	SetVDPRegs	;set full scroll
+	sf	VDPLock
+
+	moveq	#14,d0
+	moveq	#14,d1
+	move.w	#26,d2
+	move.w	#7,d3
+	move.w	#Pri+Pal3,d4
+	move.w	#ScrollB,d5
+	st	VDPLock		;lock VDP
+	jsr	SetBlockAttr
+	sf	VDPLock		;unlock VDP
+
+	lea	scc_changestr(pc),a0
+	bsr	console
+	move.w	#256,scrolltime
+	addq.w	#4,scrollmode
+	rts
+scc_changestr
+	c_scr	ScrollA
+	c_pos	1,0
+	c_attr	1+Pal3
+	dc.b	'Changed '
+	c_attr	0+Pal0
+	dc.b	'                '
+	c_scr	ScrollB
+	c_attr	1+Pal2
+	c_pos	9,0
+	dc.b	'priorities'
+	c_stop
+
+scc_restart
+	moveq	#14,d0
+	moveq	#14,d1
+	move.w	#26,d2
+	move.w	#7,d3
+	move.w	#Pal3,d4
+	move.w	#ScrollB,d5
+	st	VDPLock		;lock VDP
+	jsr	SetBlockAttr
+	sf	VDPLock		;unlock VDP
+	lea	scc_clearbstr(pc),a0
+	bsr	console
+	move.w	#4,scrollmode
+	rts
+scc_clearbstr
+	c_scr	ScrollB
+	c_pos	0,0
+	c_attr	0+Pal0
+	dc.b	'                    '	
+	c_stop
+	
+
+Scroll_Poll
+	moveq	#0,d0		;VSRAM address (first two columns)
+	jsr	SetVSRAMWrite	;set write to vertical scroll RAM
+	lea	VScrollSlave,a0	;point at slaves
+	lea	VDPData,a1	;point at VDP data port
+	moveq	#80/4-1,d0	;long words (less 1)
+sp_vs
+	move.l	(a0)+,(a1)	;move scrolls to hardware
+	dbra	d0,sp_vs	;do all registers
+	
+	move.w	#HScroll,d0	;address of horizontal scroll table (in VRAM)
+	move.w	#1024,d1	;length of table
+	lea	HScrollSlave,a0	;point to slaves
+	jmp	CopyToVRAM	;update horizontal scrolls
+
+
+scrtitlestr
+	dc.b	'Scro'
+	dc.b	'll D'
+	dc.b	'emon'
+	dc.b	'stra'
+	dc.b	'tion'
+	dc.b	'Pres'
+	dc.b	's ST'
+	dc.b	'ART '
+	dc.b	'to q'
+	dc.b	'uit '
+	dc.b	'this'
+	dc.b	' scr'
+	dc.b	'een'
+	dc.b	0
+
+;*************************************************************************
+;*                          WINDOW DEMONSTRATION                         *
+;*************************************************************************
+
+Window_Init
+	moveq	#16,d0		;16 frames
+	jsr	FadeOut		;fade out (menu)
+
+	bsr	ClearCellMaps	;clear cell maps
+	bsr	ClearScrolls	;clear scrolls
+
+	move.w	#130,d0		;cell address
+	lea	wintitlestr,a0	;string pointer
+	bsr	spritechars	;load characters for sprites
+
+	move.w	#0,windowmode	;set initial mode
+
+	lea	HScrollSlave,a0	;point to slaves
+	moveq	#0,d0		;clear d0
+	move.w	#(1024+80)/4-1,d1 ;length
+wi_clr
+	move.l	d0,(a0)+	;clear scroll
+	dbra	d1,wi_clr	;clear all
+
+	lea	wi_palette(pc),a0 ;data pointer
+	jsr	SetPalette	;set up palette buffer
+
+	lea	wi_windowstr(pc),a0 ;point to text data
+	bsr	console		;print it
+
+	move.b	#10,VDP_WindowHPos ;set window from left to position 10
+	jsr	SetVDPRegs	;set registers (no need to lock VDP)
+
+	moveq	#16,d0		;16 frames
+	jmp	FadeIn		;fade in
+
+wi_palette
+	dc.w	40,1
+	dc.w	$00E	;background 2 (RED)
+	dc.w	47,1
+	dc.w	$EEE	;foreground 2 (WHITE)
+	dc.w	56,1
+	dc.w	$EE0	;background 3 (CYAN)
+	dc.w	63,1
+	dc.w	$E00	;foreground 3 (BLUE)
+	dc.w	-1
+	
+wi_windowstr
+	c_scr	Window	;text on window
+	c_attr	1+Pal1
+	c_pos	1,8
+	dc.b	'This text is on the'
+	c_pos	1,9
+	dc.b	'WINDOW which steals'
+	c_pos	1,10
+	dc.b	'the display from   '
+	c_pos	1,11
+	dc.b	'SCROLLA. The WINDOW'
+	c_pos	1,12
+	dc.b	'currently occupies '
+	c_pos	1,13
+	dc.b	'the left half side '
+	c_pos	1,14
+	dc.b	'of the screen.     '
+	c_scr	ScrollA
+	c_attr	1+Pal2
+	c_pos	22,7
+	dc.b	'This text is on '
+	c_pos	22,8
+	dc.b	'SCROLLA. When it'
+	c_pos	22,9
+	dc.b	'scrolls, the    '
+	c_pos	22,10
+	dc.b	'WINDOW does not!'
+	c_attr	1+Pal3
+	c_scr	ScrollB
+	c_pos	20,12
+	dc.b	'This is on SCROLLB, '
+	c_pos	20,13
+	dc.b	'which has lower     '
+	c_pos	20,14
+	dc.b	'priority than SCROLL'
+	c_pos	20,15
+	dc.b	'A or WINDOW, but the'
+	c_pos	20,16
+	dc.b	'WINDOW is transpar- '
+	c_pos	20,17
+	dc.b	'ent in places so B  '
+	c_pos	20,18
+	dc.b	'will show through   '
+	
+	c_stop
+
+wintitlestr
+	dc.b	'Wind'
+	dc.b	'ow D'
+	dc.b	'emon'
+	dc.b	'stra'
+	dc.b	'tion'
+	dc.b	'Pres'
+	dc.b	's ST'
+	dc.b	'ART '
+	dc.b	'to q'
+	dc.b	'uit '
+	dc.b	'this'
+	dc.b	' scr'
+	dc.b	'een'
+	dc.b	0
+
+Window_Call
+	bsr	startkey	;see if user abort
+	move.w	windowmode,d0	;get current mode
+	move.l	wc_modes(pc,d0.w),-(sp) ;stack respective routine address
+	rts			;call routine
+wc_modes
+	dc.l	wc_wait,wc_seta,wc_wait,wc_alla
+	dc.l	wc_wait,wc_seta2,wc_wait,wc_alla2
+	dc.l	wc_wait,wc_seta3,wc_wait,wc_alla3
+	dc.l	wc_wait,wc_setb,wc_wait,wc_allb
+	dc.l	wc_wait,wc_setb2,wc_wait,wc_allb2
+	dc.l	wc_wait,wc_setboth,wc_wait,wc_both
+	dc.l	wc_wait,wc_setchange,wc_wait,wc_change
+	dc.l	wc_restart
+
+wc_wait
+	moveq	#30,d0
+	jsr	WaitFrames	;wait 1/2 sec
+wc_donext
+	addq.w	#4,windowmode	next mode
+	rts
+
+wc_seta
+	lea	wc_setastr(pc),a0
+	bsr	console
+	move.w	#128,windowtime
+	bra.s	wc_donext
+wc_setastr
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Vertical A scroll'
+	c_attr	0+Pal0
+	dc.b	'  '
+	c_stop
+
+wc_alla
+	jsr	WaitFrame
+	addq.w	#2,VScrollSlave
+	subq.w	#1,windowtime
+	beq.s	wc_donext
+	rts
+
+wc_seta2
+	lea	wc_setastr2(pc),a0
+	bsr	console
+	move.w	#256,windowtime
+	bra.s	wc_donext
+wc_setastr2
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Horizontal A scroll'
+	c_pos	1,17
+	dc.b	'This causes garbage'
+	c_pos	1,18
+	dc.b	'when the window is '
+	c_pos	1,19
+	dc.b	'on the left side of'
+	c_pos	1,20
+	dc.b	'the screen         '
+	c_stop
+
+wc_alla2
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_seta3
+	lea	wc_setastr3(pc),a0
+	bsr	console
+	moveq	#20,d0
+	moveq	#7,d1
+	move.w	#2,d2
+	move.w	#4,d3
+	move.w	#Pri+Pal0+1,d4	;SPACE character with BLACK (not TRANSPARENT) background
+	move.w	#ScrollB,d5
+	st	VDPLock
+	jsr	SetCellBlock
+	sf	VDPLock
+	move.w	#256,windowtime
+	bra	wc_donext
+wc_setastr3
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,17
+	dc.b	'The solution is to '
+	c_pos	1,18
+	dc.b	'blank a 2 cell wide'
+	c_pos	1,19
+	dc.b	'gap on SCROLLB with'
+	c_pos	1,20
+	dc.b	'high priority      '
+	c_stop
+
+wc_alla3
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_setb
+	lea	wc_setbstr(pc),a0
+	bsr	console
+	moveq	#20,d0
+	moveq	#7,d1
+	move.w	#2,d2
+	move.w	#4,d3
+	move.w	#Pal0+0,d4	;SPACE character with TRANSPARENT background
+	move.w	#ScrollB,d5
+	st	VDPLock
+	jsr	SetCellBlock
+	sf	VDPLock
+	move.w	#256,windowtime
+	bra	wc_donext
+wc_setbstr
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Horizontal B scroll'
+	c_attr	1+Pal1
+	c_pos	1,17
+	dc.b	'SCROLLB does not   '
+	c_pos	1,18
+	dc.b	'have the same      '
+	c_pos	1,19
+	dc.b	'problems as SCROLLA'
+	c_pos	1,20
+	c_attr	0+Pal0
+	dc.b	'                   '
+	c_stop
+
+wc_allb
+	jsr	WaitFrame
+	addq.w	#2,HScrollSlave+2
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_setb2
+	lea	wc_setb2str(pc),a0
+	bsr	console
+	move.w	#64,windowtime
+	bra	wc_donext
+wc_setb2str
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Vertical B scroll'
+	c_attr	0+Pal0
+	dc.b	'  '
+	c_pos	1,17
+	dc.b	'                   '
+	c_pos	1,18
+	dc.b	'                   '
+	c_pos	1,19
+	dc.b	'                   '
+	c_stop
+
+wc_allb2
+	jsr	WaitFrame
+	subq.w	#4,VScrollSlave+2
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_setboth
+	lea	wc_setbothstr(pc),a0
+	bsr	console
+	move.w	#256,windowtime
+	bra	wc_donext
+wc_setbothstr
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Both independent'
+	c_attr	0+Pal0
+	dc.b	' '
+	c_stop
+
+wc_both
+	jsr	WaitFrame
+	addq.w	#2,VScrollSlave
+	subq.w	#2,HScrollSlave+2
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_setchange
+	lea	wc_setchstr(pc),a0
+	bsr	console
+	moveq	#20,d0
+	moveq	#12,d1
+	moveq	#20,d2
+	moveq	#7,d3
+	move.w	#Pri+Pal3,d4
+	move.w	#ScrollB,d5
+	st	VDPLock
+	jsr	SetBlockAttr
+	sf	VDPLock
+	move.w	#256,windowtime
+	bra	wc_donext
+wc_setchstr
+	c_scr	Window
+	c_attr	1+Pal1
+	c_pos	1,0
+	dc.b	'Changed priority'
+	c_stop
+
+wc_change
+	jsr	WaitFrame
+	subq.w	#2,VScrollSlave
+	subq.w	#3,VScrollSlave+2
+	addq.w	#2,HScrollSlave+2
+	subq.w	#1,windowtime
+	beq	wc_donext
+	rts
+
+wc_restart
+	move.w	#0,windowmode
+	moveq	#20,d0
+	moveq	#12,d1
+	moveq	#20,d2
+	moveq	#7,d3
+	move.w	#Pal3,d4
+	move.w	#ScrollB,d5
+	st	VDPLock
+	jsr	SetBlockAttr
+	sf	VDPLock
+	rts
+
+Window_Poll
+	moveq	#0,d0 		;VRAM address (first two columns)
+	jsr	SetVSRAMWrite	;set write to vertical scroll RAM
+	lea	VScrollSlave,a0	;point to slaves
+	lea	VDPData,a1	;point to VDP data port
+	moveq	#80/4-1,d0	;count
+wp_vs
+	move.l	(a0)+,(a1)	;move slave to hardware
+	dbra	d0,wp_vs	;move all
+
+	move.w	#HScroll,d0	;horizontal scroll table address (in VRAM)
+	move.w	#1024,d1	;length
+	lea	HScrollSlave,a0	;point to slaves
+	jmp	CopyToVRAM	;set hardware
+
+;*************************************************************************
+;*                           SOUND DEMONSTRATION                         *
+;*************************************************************************
+
+Sound_Init
+	moveq	#16,d0 		;16 frames
+	jsr	FadeOut		;fade out (menu)
+
+	lea	z80data,a0	;point at Z80 program
+	move.w	#z80end-z80data-1,d0 ;program length (less 1)
+	jsr	LoadZ80		;load program into Z80 and begin execution
+
+	bsr	ClearCellMaps	;clear all cell maps
+	bsr	ClearScrolls	;clear vertical and horizontal scrolls
+
+	move.w	#100*32,d0	;VRAM address of character 100
+	move.w	#endpiano-pianocells,d1	;length of sprite data
+	lea	pianocells,a0	;point to sprite data
+	jsr	CopyToVRAM	;load sprite data into VRAM
+
+	moveq	#5,d0		;start x
+	moveq	#10,d1		;start y
+	moveq	#29,d2		;width
+	moveq	#8,d3		;height
+	move.w	#ScrollA,d4	;screen address
+	lea	pianomap,a0	;pointer to map data
+	jsr	LoadCellMap	;load a cell map
+	
+	move.w	#$80+14*8,BigBuffer	;y
+	move.w	#0,BigBuffer+2		;size and link
+	move.w	#105,BigBuffer+4	;cell
+	move.w	#$80+7*8-2,BigBuffer+6	;x
+
+	lea	sndtitlestr,a0	;data ptr
+	bsr	console	;title/instructions
+
+	moveq	#16,d0	;16 frames
+	jmp	FadeIn	;fade in
+	
+sndtitlestr
+	c_scr	ScrollA		;text on scroll A (could use B)
+	c_attr	1+Pal0		;sprites have higher priority
+	c_pos	10,5
+	dc.b	'Sound Demonstration'
+	c_pos	0,7
+	dc.b	'Left/Right to move, A to strike/release'
+	c_attr	1+Pal1+Pri	;sprites have lower priority
+	c_pos	4,22
+	dc.b	'Press START to quit this screen'
+	c_stop
+
+Sound_Call
+	jsr	WaitFrame	;limit frame rate (and video sync)
+
+	testheld KCodeLeft	;holding left
+	beq.s	noleft		;skip if not
+	moveq	#-2,d0		;dx
+	moveq	#0,d1		;dy
+	bsr	pianomove	;move cursor
+noleft
+	testheld KCodeRight	;holding right
+	beq.s	noright		;skip if not
+	moveq	#2,d0		;dx
+	moveq	#0,d1		;dy
+	bsr	pianomove	;move cursor
+noright
+	testheld KCodeUp	;holding up
+	beq.s	noup		;skip if not
+	moveq	#0,d0		;dx
+	moveq	#-2,d1		;dy
+	bsr	pianomove	;move cursor
+noup
+	testheld KCodeDown	;holding down
+	beq.s	nodown		;skip if not
+	moveq	#0,d0		;dx
+	moveq	#2,d1		;dy
+	bsr	pianomove	;move cursor
+nodown
+	testheld KCodeA		;holding a
+	bne.s	playnote	;skip if holding
+	testhit KCodeA		;A been hit
+	beq.s	noA		;skip if not
+playnote
+	tst.b	playing		;note currently playing?
+	bne	startkey	;yes so check user abort
+	bsr	MakeSound	;need a new note
+	st	playing		;flag Z80 playing note
+	bra	startkey	;check user abort
+
+noA	tst.b	playing		;no key A, so check if playing
+	beq	startkey	;check user abort if no note
+	sf	playing		;else no longer playing note
+	bsr	SoundOff	;kill note
+	bsr	startkey	;check user abort
+	rts
+pianomove
+	add.w	BigBuffer+6,d0	;add x and dx
+	cmp.w	#$80+33*8,d0	;check right
+	bgt.s	offkeyx		;skip if too big
+	cmp.w	#$80+7*8-2,d0	;check left
+	blt.s	offkeyx		;skip if too small
+	move.w	d0,BigBuffer+6	;update cursor x (slave)
+offkeyx
+	add.w	BigBuffer,d1	;add y to dy
+	cmp.w	#$80+16*8,d1	;compare bottom
+	bgt.s	offkeyy		;skip if too low
+	cmp.w	#$80+14*8,d1	;compare top
+	blt.s	offkeyy		;skip if too high
+	move.w	d1,BigBuffer	;update cursor y (slave)
+offkeyy
+	rts    	
+
+MakeSound
+	move.w	BigBuffer+6,d2	;get x
+	lea	BlackEdges,a0	;point to edge data
+	cmp	#$80+15*8,BigBuffer ;check if only white notes
+	blt.s	getnote		;skip if can be black or white
+	lea	WhiteEdges,a0	;point to edge data
+
+getnote	move.b	(a0)+,d0	;get note
+	move.b	(a0)+,d1	;get octave
+	cmp.w	(a0)+,d2	;found edge
+	bgt.s	getnote		;if not keep going
+	bsr	SoundOn		;sound the note
+	rts
+BlackEdges
+	dc.b	5,2
+	dc.w	$80+7*8+4
+	dc.b	6,2
+	dc.w	$80+7*8+12
+	dc.b	7,2
+	dc.w	$80+7*8+20
+	dc.b	8,2
+	dc.w	$80+7*8+28
+	dc.b	9,2
+	dc.w	$80+7*8+36
+	dc.b	10,2
+	dc.w	$80+7*8+44
+	dc.b	11,2
+	dc.w	$80+7*8+56
+	dc.b	0,3
+	dc.w	$80+7*8+68
+	dc.b	1,3
+	dc.w	$80+7*8+76
+	dc.b	2,3
+	dc.w	$80+7*8+84
+	dc.b	3,3
+	dc.w	$80+7*8+92
+	dc.b	4,3
+	dc.w	$80+7*8+104
+	dc.b	5,3
+	dc.w	$80+7*8+116
+	dc.b	6,3
+	dc.w	$80+7*8+124
+	dc.b	7,3
+	dc.w	$80+7*8+132
+	dc.b	8,3
+	dc.w	$80+7*8+140
+	dc.b	9,3
+	dc.w	$80+7*8+148
+	dc.b	10,3
+	dc.w	$80+7*8+156
+	dc.b	11,3
+	dc.w	$80+7*8+168
+	dc.b	0,4
+	dc.w	$80+7*8+180
+	dc.b	1,4
+	dc.w	$80+7*8+188
+	dc.b	2,4
+	dc.w	$80+7*8+196
+	dc.b	3,4
+	dc.w	$80+7*8+204
+	dc.b	4,4
+	dc.w	$80+7*8+216
+WhiteEdges
+	dc.b	5,2
+	dc.w	$80+7*8+8
+	dc.b	7,2
+	dc.w	$80+7*8+24
+	dc.b	9,2
+	dc.w	$80+7*8+40
+	dc.b	11,2
+	dc.w	$80+7*8+56
+	dc.b	0,3
+	dc.w	$80+7*8+72
+	dc.b	2,3
+	dc.w	$80+7*8+88
+	dc.b	4,3
+	dc.w	$80+7*8+104
+	dc.b	5,3
+	dc.w	$80+7*8+120
+	dc.b	7,3
+	dc.w	$80+7*8+136
+	dc.b	9,3
+	dc.w	$80+7*8+152
+	dc.b	11,3
+	dc.w	$80+7*8+168
+	dc.b	0,4
+	dc.w	$80+7*8+184
+	dc.b	2,4
+	dc.w	$80+7*8+200
+	dc.b	4,4
+	dc.w	$80+7*8+216
+
+Sound_Poll
+	move.w	#SpriteAttr,d0	;sprite attribute address
+	jsr	SetVRAMWrite	;set write to VRAM
+	lea	BigBuffer,a0	;point to data buffer
+	move.l	(a0)+,VDPData	;move sprite data to VRAM
+	move.l	(a0)+,VDPData	;move sprite data to VRAM
+	rts
+
+Sound_Tidy
+SoundOff
+	move.w	sr,-(sp)	;save interrupt status
+	DI			;disable interrupts
+	Z80di			;grab Z80
+	sf	Z80Play		;flag no note starting
+	st	Z80Stop		;flag stop any current note
+	Z80ei			;allow Z80 to continue
+	move.w	(sp)+,sr	;reset old interrupt status
+	rts
+
+SoundOn
+	move.w	sr,-(sp) 	;save interrupt status
+	DI			;disable interrupts
+	Z80di			;grab Z80
+	move.b	d0,Z80Note	;save note
+	move.b	d1,Z80Octave	;save octave
+	st	Z80Play		;flag note starting
+	sf	Z80Stop		;flag note not stopping
+	Z80ei			;allow Z80 to continue
+	move.w	(sp)+,sr	;reset old interrupt status
+	rts
+
+;*************************************************************************
+;*                       CELL MAP FOR PIANO KEYBOARD                     *
+;*************************************************************************
+
+pianomap
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,102,103,102,103,102,103,101,100,102,103,102,103,101,100,102
+	dc.w	103,102,103,102,103,101,100,102,103,102,103,101
+	dc.w	104,100,101,100,101,100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	104,100,101,100,101,100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	104,100,101,100,101,100,101,100,101,100,101,100,101,100,101,100,101
+	dc.w	100,101,100,101,100,101,100,101,100,101,100,101
+
+;*************************************************************************
+;*                         CELLS TO DRAW PIANO KEYBOARD                  *
+;*************************************************************************
+
+pianocells
+	dc.l	$66666666	;100 all white
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+	dc.l	$66666666
+
+	dc.l	$66666667	;101 white
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+	dc.l	$66666667
+
+	dc.l	$66668888	;102 white/bla6k
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+	dc.l	$66668888
+
+	dc.l	$88886666	;103 bla6k/white
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+	dc.l	$88886666
+
+	dc.l	$00000007	;white border
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+	dc.l	$00000007
+
+	dc.l	$88880000	;105 cursor
+	dc.l	$87778000
+	dc.l	$87780000
+	dc.l	$87878000
+	dc.l	$08087800
+	dc.l	$00008780
+	dc.l	$00000878
+	dc.l	$00000080
+
+endpiano
+
+;*************************************************************************
+;*                    2 COLOUR ASCII CHARCATER SET                       *
+;*************************************************************************
+
+AsciiChars
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$38,$38,$38,$38,$00,$38,$38,$00
+	dc.b	$6C,$6C,$24,$6C,$00,$00,$00,$00
+	dc.b	$48,$FC,$FC,$48,$FC,$FC,$48,$00
+	dc.b	$30,$FC,$C0,$FC,$0C,$FC,$30,$00
+	dc.b	$00,$E4,$E8,$F0,$3C,$5C,$9C,$00
+	dc.b	$60,$90,$40,$20,$54,$88,$74,$00
+	dc.b	$30,$30,$10,$30,$00,$00,$00,$00
+	dc.b	$1C,$38,$70,$70,$70,$38,$1C,$00
+	dc.b	$70,$38,$1C,$1C,$1C,$38,$70,$00
+	dc.b	$10,$54,$38,$7C,$38,$54,$10,$00
+	dc.b	$30,$30,$FC,$FC,$30,$30,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$38,$18,$30
+	dc.b	$00,$00,$7C,$7C,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$38,$38,$00
+	dc.b	$06,$0E,$1C,$38,$70,$E0,$C0,$00
+	dc.b	$78,$CC,$CC,$CC,$CC,$CC,$78,$00
+	dc.b	$1C,$3C,$0C,$0C,$0C,$0C,$0C,$00
+	dc.b	$78,$FC,$CC,$1C,$70,$FC,$FC,$00
+	dc.b	$78,$FC,$0C,$7C,$0C,$FC,$78,$00
+	dc.b	$1C,$3C,$6C,$CC,$FC,$0C,$0C,$00
+	dc.b	$FC,$FC,$C0,$F8,$0C,$FC,$78,$00
+	dc.b	$38,$60,$C0,$F8,$CC,$CC,$78,$00
+	dc.b	$FC,$FC,$0C,$18,$30,$30,$30,$00
+	dc.b	$78,$FC,$CC,$78,$CC,$FC,$78,$00
+	dc.b	$78,$FC,$CC,$7C,$0C,$7C,$78,$00
+	dc.b	$00,$38,$38,$00,$00,$38,$38,$00
+	dc.b	$00,$38,$38,$00,$00,$38,$18,$30
+	dc.b	$0E,$1C,$38,$70,$38,$1C,$0E,$00
+	dc.b	$00,$7C,$7C,$00,$7C,$7C,$00,$00
+	dc.b	$E0,$70,$38,$1C,$38,$70,$E0,$00
+	dc.b	$78,$FC,$CC,$18,$30,$00,$30,$00
+	dc.b	$78,$84,$B4,$CC,$B8,$80,$7C,$00
+	dc.b	$78,$FC,$CC,$FC,$FC,$CC,$CC,$00
+	dc.b	$F8,$FC,$CC,$F8,$CC,$FC,$F8,$00
+	dc.b	$78,$FC,$CC,$C0,$CC,$FC,$78,$00
+	dc.b	$F8,$FC,$CC,$CC,$CC,$FC,$F8,$00
+	dc.b	$FC,$FC,$C0,$F8,$C0,$FC,$FC,$00
+	dc.b	$FC,$FC,$C0,$F8,$F8,$C0,$C0,$00
+	dc.b	$78,$FC,$C0,$DC,$CC,$FC,$78,$00
+	dc.b	$CC,$CC,$CC,$FC,$FC,$CC,$CC,$00
+	dc.b	$FC,$FC,$30,$30,$30,$FC,$FC,$00
+	dc.b	$0C,$0C,$0C,$0C,$CC,$FC,$78,$00
+	dc.b	$CC,$DC,$F8,$F0,$F8,$DC,$CC,$00
+	dc.b	$C0,$C0,$C0,$C0,$C0,$FC,$FC,$00
+	dc.b	$C6,$EE,$D6,$C6,$C6,$C6,$C6,$00
+	dc.b	$CC,$CC,$EC,$FC,$DC,$CC,$CC,$00
+	dc.b	$78,$FC,$CC,$CC,$CC,$FC,$78,$00
+	dc.b	$F8,$FC,$CC,$FC,$F8,$C0,$C0,$00
+	dc.b	$78,$FC,$C4,$C4,$D4,$C8,$74,$00
+	dc.b	$F8,$FC,$CC,$FC,$F8,$DC,$CC,$00
+	dc.b	$78,$FC,$C0,$78,$0C,$FC,$78,$00
+	dc.b	$FC,$FC,$30,$30,$30,$30,$30,$00
+	dc.b	$CC,$CC,$CC,$CC,$CC,$FC,$78,$00
+	dc.b	$CC,$CC,$CC,$CC,$CC,$78,$30,$00
+	dc.b	$C6,$C6,$C6,$D6,$D6,$EE,$C6,$00
+	dc.b	$CC,$CC,$78,$30,$78,$CC,$CC,$00
+	dc.b	$CC,$CC,$CC,$78,$30,$30,$30,$00
+	dc.b	$FC,$FC,$18,$30,$60,$FC,$FC,$00
+	dc.b	$F8,$F8,$C0,$C0,$C0,$F8,$F8,$00
+	dc.b	$C0,$E0,$70,$38,$1C,$0E,$06,$00
+	dc.b	$F8,$F8,$18,$18,$18,$F8,$F8,$00
+	dc.b	$30,$78,$FC,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$FF,$FF
+	dc.b	$60,$30,$18,$0C,$00,$00,$00,$00
+	dc.b	$00,$00,$78,$0C,$7C,$CC,$7C,$00
+	dc.b	$C0,$C0,$F8,$CC,$CC,$CC,$F8,$00
+	dc.b	$00,$00,$78,$CC,$C0,$CC,$78,$00
+	dc.b	$0C,$0C,$7C,$CC,$CC,$CC,$7C,$00
+	dc.b	$00,$00,$78,$CC,$F8,$C0,$78,$00
+	dc.b	$38,$6C,$60,$F8,$60,$60,$60,$00
+	dc.b	$00,$00,$78,$CC,$CC,$7C,$0C,$78
+	dc.b	$C0,$C0,$F8,$CC,$CC,$CC,$CC,$00
+	dc.b	$00,$30,$00,$30,$30,$30,$30,$00
+	dc.b	$0C,$00,$0C,$0C,$0C,$CC,$CC,$78
+	dc.b	$C0,$C0,$CC,$D8,$F0,$D8,$CC,$00
+	dc.b	$70,$30,$30,$30,$30,$30,$78,$00
+	dc.b	$00,$00,$FC,$D6,$D6,$D6,$D6,$00
+	dc.b	$00,$00,$F8,$CC,$CC,$CC,$CC,$00
+	dc.b	$00,$00,$78,$CC,$CC,$CC,$78,$00
+	dc.b	$00,$00,$F8,$CC,$CC,$F8,$C0,$C0
+	dc.b	$00,$00,$7C,$CC,$CC,$7C,$0C,$0C
+	dc.b	$00,$00,$F8,$CC,$C0,$C0,$C0,$00
+	dc.b	$00,$00,$78,$C0,$78,$0C,$78,$00
+	dc.b	$60,$60,$F8,$60,$60,$6C,$38,$00
+	dc.b	$00,$00,$CC,$CC,$CC,$CC,$7C,$00
+	dc.b	$00,$00,$CC,$CC,$CC,$78,$30,$00
+	dc.b	$00,$00,$D6,$D6,$D6,$D6,$7E,$00
+	dc.b	$00,$00,$CC,$78,$30,$78,$CC,$00
+	dc.b	$00,$00,$CC,$CC,$CC,$7C,$0C,$78
+	dc.b	$00,$00,$FC,$18,$30,$60,$FC,$00
+	dc.b	$38,$78,$60,$E0,$60,$78,$38,$00
+	dc.b	$30,$30,$30,$30,$30,$30,$30,$30
+	dc.b	$70,$78,$18,$1C,$18,$78,$70,$00
+	dc.b	$00,$00,$14,$28,$00,$00,$00,$00
+	dc.b	$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+
+;*************************************************************************
+;*                       'SMILEY' SPRITE CHARACTERS                      *
+;*************************************************************************
+
+smilesprites
+	dc.b	$00,$BB,$BB,$00,$0B,$BB,$BB,$B0	;sprite definition data
+	dc.b	$BB,$8B,$B8,$BB,$BB,$BB,$BB,$BB
+	dc.b	$B8,$BB,$BB,$8B,$BB,$88,$88,$BB
+	dc.b	$0B,$BB,$BB,$B0,$00,$BB,$BB,$00	;8x8
+
+	dc.b	$00,$00,$0B,$BB,$00,$0B,$BB,$BB
+	dc.b	$00,$BB,$BB,$BB,$0B,$B8,$8B,$BB
+	dc.b	$0B,$B8,$8B,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$88,$BB,$BB
+	dc.b	$BB,$B8,$8B,$BB,$0B,$BB,$88,$88
+	dc.b	$0B,$BB,$BB,$88,$00,$BB,$BB,$BB
+	dc.b	$00,$0B,$BB,$BB,$00,$00,$0B,$BB
+	dc.b	$BB,$B0,$00,$00,$BB,$BB,$B0,$00
+	dc.b	$BB,$BB,$BB,$00,$BB,$B8,$8B,$B0
+	dc.b	$BB,$B8,$8B,$B0,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$88,$BB
+	dc.b	$BB,$B8,$8B,$BB,$88,$88,$BB,$B0
+	dc.b	$88,$BB,$BB,$B0,$BB,$BB,$BB,$00
+	dc.b	$BB,$BB,$B0,$00,$BB,$B0,$00,$00	;16x16
+
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$BB
+	dc.b	$00,$00,$BB,$BB,$00,$0B,$BB,$BB
+	dc.b	$00,$BB,$BB,$88,$00,$BB,$B8,$88
+	dc.b	$0B,$BB,$B8,$88,$0B,$BB,$BB,$88
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$B8,$8B,$BB,$BB,$B8,$88,$BB
+	dc.b	$0B,$BB,$88,$88,$0B,$BB,$B8,$88
+	dc.b	$00,$BB,$BB,$B8,$00,$BB,$BB,$BB
+	dc.b	$00,$0B,$BB,$BB,$00,$00,$BB,$BB
+	dc.b	$00,$00,$00,$BB,$00,$00,$00,$00
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$8B,$BB,$BB,$B8
+	dc.b	$8B,$BB,$BB,$B8,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$88,$88,$88,$88
+	dc.b	$88,$88,$88,$88,$B8,$88,$88,$8B
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$00,$00,$00,$00,$BB,$00,$00,$00
+	dc.b	$BB,$BB,$00,$00,$BB,$BB,$B0,$00
+	dc.b	$88,$BB,$BB,$00,$88,$8B,$BB,$00
+	dc.b	$88,$8B,$BB,$B0,$88,$BB,$BB,$B0
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$B8,$8B,$BB,$BB,$88,$8B,$BB
+	dc.b	$88,$88,$BB,$B0,$88,$8B,$BB,$B0
+	dc.b	$8B,$BB,$BB,$00,$BB,$BB,$BB,$00
+	dc.b	$BB,$BB,$B0,$00,$BB,$BB,$00,$00
+	dc.b	$BB,$00,$00,$00,$00,$00,$00,$00	;24x24
+
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$BB
+	dc.b	$00,$00,$0B,$BB,$00,$00,$BB,$BB
+	dc.b	$00,$0B,$BB,$B8,$00,$0B,$BB,$88
+	dc.b	$00,$BB,$BB,$88,$00,$BB,$BB,$88
+	dc.b	$0B,$BB,$BB,$B8,$0B,$BB,$BB,$BB
+	dc.b	$0B,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$88,$8B
+	dc.b	$BB,$BB,$88,$88,$0B,$BB,$B8,$88
+	dc.b	$0B,$BB,$BB,$88,$0B,$BB,$BB,$B8
+	dc.b	$00,$BB,$BB,$BB,$00,$BB,$BB,$BB
+	dc.b	$00,$0B,$BB,$BB,$00,$0B,$BB,$BB
+	dc.b	$00,$00,$BB,$BB,$00,$00,$0B,$BB
+	dc.b	$00,$00,$00,$BB,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$0B,$BB,$00,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$88,$BB,$BB,$BB,$88,$8B,$BB,$BB
+	dc.b	$88,$8B,$BB,$BB,$88,$8B,$BB,$BB
+	dc.b	$88,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$8B,$BB,$BB,$BB
+	dc.b	$88,$BB,$BB,$BB,$88,$88,$8B,$BB
+	dc.b	$88,$88,$88,$88,$B8,$88,$88,$88
+	dc.b	$BB,$B8,$88,$88,$BB,$BB,$B8,$88
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$00,$BB,$BB,$BB,$00,$00,$0B,$BB
+	dc.b	$BB,$B0,$00,$00,$BB,$BB,$BB,$00
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$88,$BB,$BB,$B8,$88
+	dc.b	$BB,$BB,$B8,$88,$BB,$BB,$B8,$88
+	dc.b	$BB,$BB,$BB,$88,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$B8
+	dc.b	$BB,$BB,$BB,$88,$BB,$B8,$88,$88
+	dc.b	$88,$88,$88,$88,$88,$88,$88,$8B
+	dc.b	$88,$88,$8B,$BB,$88,$8B,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$00,$BB,$B0,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$BB,$00,$00,$00
+	dc.b	$BB,$B0,$00,$00,$BB,$BB,$00,$00
+	dc.b	$8B,$BB,$B0,$00,$88,$BB,$B0,$00
+	dc.b	$88,$BB,$BB,$00,$88,$BB,$BB,$00
+	dc.b	$8B,$BB,$BB,$B0,$BB,$BB,$BB,$B0
+	dc.b	$BB,$BB,$BB,$B0,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$BB,$BB,$BB,$BB
+	dc.b	$BB,$BB,$BB,$BB,$B8,$88,$BB,$BB
+	dc.b	$88,$88,$BB,$BB,$88,$8B,$BB,$B0
+	dc.b	$88,$BB,$BB,$B0,$8B,$BB,$BB,$B0
+	dc.b	$BB,$BB,$BB,$00,$BB,$BB,$BB,$00
+	dc.b	$BB,$BB,$B0,$00,$BB,$BB,$B0,$00
+	dc.b	$BB,$BB,$00,$00,$BB,$B0,$00,$00
+	dc.b	$BB,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00	;32x32
+endsmiles
+
+;*************************************************************************
+;*                         DUMP OF Z80 SOUND CODE                        *
+;*************************************************************************
+
+z80data
+	dc.b	$F3,$C3,$09,$00,$00,$00,$00,$00
+	dc.b	$00,$31,$00,$20,$11,$00,$40,$CD
+	dc.b	$F3,$00,$21,$7A,$00,$06,$28,$CD
+	dc.b	$E5,$00,$3A,$07,$00,$A7,$CA,$1A
+	dc.b	$00,$AF,$32,$07,$00,$32,$08,$00
+	dc.b	$3A,$05,$00,$FE,$0C,$38,$01,$AF
+	dc.b	$87,$4F,$06,$00,$21,$62,$00,$09
+	dc.b	$3A,$06,$00,$87,$87,$87,$4E,$23
+	dc.b	$86,$47,$CD,$CE,$00,$21,$CA,$00
+	dc.b	$CD,$E3,$00,$3A,$07,$00,$A7,$C2
+	dc.b	$59,$00,$3A,$08,$00,$A7,$CA,$4B
+	dc.b	$00,$21,$CC,$00,$CD,$E3,$00,$C3
+	dc.b	$1A,$00,$69,$02,$8D,$02,$B4,$02
+	dc.b	$DD,$02,$09,$03,$37,$03,$68,$03
+	dc.b	$9C,$03,$D3,$03,$0D,$04,$4B,$04
+	dc.b	$8C,$04,$22,$00,$27,$00,$28,$00
+	dc.b	$28,$01,$28,$02,$28,$04,$28,$05
+	dc.b	$28,$06,$2B,$00,$30,$71,$34,$0D
+	dc.b	$38,$33,$3C,$01,$40,$23,$44,$2D
+	dc.b	$48,$26,$4C,$00,$50,$5F,$54,$99
+	dc.b	$58,$5F,$5C,$94,$60,$05,$64,$05
+	dc.b	$68,$05,$6C,$07,$70,$02,$74,$02
+	dc.b	$78,$02,$7C,$02,$80,$11,$84,$11
+	dc.b	$88,$11,$8C,$A6,$90,$00,$94,$00
+	dc.b	$98,$00,$9C,$00,$B0,$32,$B4,$C0
+	dc.b	$28,$00,$28,$F0,$28,$00,$CD,$F3
+	dc.b	$00,$EB,$36,$A4,$2C,$70,$2D,$EB
+	dc.b	$CD,$F3,$00,$EB,$36,$A0,$2C,$71
+	dc.b	$2D,$EB,$C9,$06,$01,$0E,$FF,$CD
+	dc.b	$F3,$00,$ED,$A0,$ED,$A0,$1D,$1D
+	dc.b	$10,$F5,$C9,$1A,$A7,$FA,$F3,$00
+	dc.b	$C9
+z80end
+
+

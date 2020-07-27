@@ -1,0 +1,615 @@
+;*************************************************************************
+;*                    SEGA GENESIS BASE CODE AND DATA                    *
+;*-----------------------------------------------------------------------*
+;* Written by Andy Onions of Realtime Games Software Ltd. 1991/2         *
+;*-----------------------------------------------------------------------*
+;* The files with .ANY extensions must be processed using MAKELOGO, so   *
+;* that a file that can be assembled is produced for the required system.*
+;*-----------------------------------------------------------------------*
+;* The following code and data is not meant to be a definitive guide to  *
+;* setting up the SEGA Genesis hardware, but various parts, namely the   *
+;* HEADER and ICD_BLK4, sections are definitely required for SEGA type   *
+;* approval. The rest of the set up represents what I think is the most  *
+;* logical way of writing a program for the Genesis. You do not have to  *
+;* use this code in its entirety, but it would save quite a lot of       *
+;* effort over sourcing a new program from scratch.                      *
+;*************************************************************************
+
+	nolist
+#CASEASM=SNASM
+	opt	os+,ow+,oz+,s+	;short branch,absolute short,zero disp,equ=label
+	regs	pc=$200,ssp=$0,usp=$0,sr=$2700
+#ENDCASE
+      
+;*************************************************************************
+;*                   NON OUTPUT GENERATING INCLUDES                      *
+;*************************************************************************
+
+#INCLUDE equs.any
+#INCLUDE macros.any
+#INCLUDE variable.any
+
+DebugMode	equ	false	;true for development, false in FINAL ROM
+CheckCheckSum	equ	false	;true if checksum check required
+
+#INCLUDE header.any
+
+;*************************************************************************
+;*                               VECTORS                                 *
+;*************************************************************************
+;All vectors are user definable - some must be defined.
+
+	org	0		;program base
+
+	dc.l	RAMEnd		;INITIAL SP - top of Genesis work RAM
+	dc.l	ICD_BLK4	;INITIAL PC - must point to ICD_BLK4
+
+	dc.l	EX_BusError
+	dc.l	EX_AddressError
+	dc.l	EX_IllegalInstruction
+	dc.l	EX_DivideBy0
+	dc.l	EX_CHK
+	dc.l	EX_TrapV
+	dc.l	EX_Priviledge
+	dc.l	EX_Trace
+
+	dc.l	EX_LineA
+	dc.l	EX_LineF
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+
+	dc.l	EX_Spurious
+	dc.l	EX_Level1
+	dc.l	EX_Level2
+	dc.l	EX_Level3
+	dc.l	EX_Level4
+	dc.l	EX_Level5
+	dc.l	EX_Level6
+	dc.l	EX_Level7
+
+	dc.l	EX_Trap0
+	dc.l	EX_Trap1
+	dc.l	EX_Trap2
+	dc.l	EX_Trap3
+	dc.l	EX_Trap4
+	dc.l	EX_Trap5
+	dc.l	EX_Trap6
+	dc.l	EX_Trap7
+	dc.l	EX_Trap8
+	dc.l	EX_Trap9
+	dc.l	EX_TrapA
+	dc.l	EX_TrapB
+	dc.l	EX_TrapC
+	dc.l	EX_TrapD
+	dc.l	EX_TrapE
+	dc.l	EX_TrapF
+
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+	dc.l	EX_Motorola	;reserved by Motorola
+
+	ifne	*-$100
+	fail		;Vector data isn't 256 bytes long!
+	endc
+
+;*************************************************************************
+;*                        ROM CARTRIDGE HEADER DATA                      *
+;*************************************************************************
+;Only the STRING equates (#DEFINE's) in HEADER.ANY may be modified.
+
+Header
+	dc.b	'SEGA GENESIS    '			;16
+
+	dc.b	'(C)',COMPANY,' ',YEAR,'.',MONTH	;16
+
+	dc.b	USATITLE				;48
+
+	dc.b	JAPANTITLE				;48
+
+	dc.b	CARTRIDGE,' '
+	ifne	SegaCompany
+	dc.b	PRODUCT,' -',VERSION
+	endc
+	ifeq	SegaCompany
+	dc.b	'T-',PRODUCT,' ',VERSION
+	endc						;14
+
+H_CheckSum
+	dc.w	CHECKSUM				; 2
+
+	dc.b	CONTROLLERS				;16
+
+	dc.l	$00000000				; 4
+H_ROMEnd
+	dc.l	ROMEND,$00FF0000,$00FFFFFF		;12
+
+	ifne	ExternalRAM
+	dc.b	'RA'
+	dc.b	EXTRAMSIZE,EXTRAMTYPE
+	dc.l	EXTRAMSTART,EXTRAMEND
+	endc
+	ifeq	ExternalRAM
+	dc.b	'            '
+	endc						;12
+
+	ifne	Modem
+	dc.b	'MO',COMPANY,MODEMNUM,'.',MODEMVER
+	endc
+	ifeq	Modem
+	dc.b	'          '
+	endc						;10
+
+	dc.b	'  '					; 2 (UNDOCUMENTED)
+
+	dc.b	MEMO					;40
+
+	dc.b	COMPATIBILITY				;16
+
+	ifne	*-$200
+	fail		;Header data isn't 256 bytes long!
+	endc
+
+
+;*************************************************************************
+;*                     ICD_BLK4 INITIALIZATION CODE                      *
+;*************************************************************************
+;This code does not have to be here, but it must exist somewhere in the
+;ROM byte for byte (at an even address) and must be the first code
+;executed. (i.e. the PC start vector at address 4 should point to it).
+;It tests and sets up most of the hardware. It does not however set up
+;a stack pointer as it does not require one internally! It is essential
+;that the vector at address 0 contains a valid stack start address or
+;a valid address is loaded into register 'a7' prior to execution of further
+;code following ICD_BLK4.
+
+ICD_BLK4
+	dc.b	$4A,$B9,$00,$A1,$00,$08,$66,$06,$4A,$79,$00,$A1,$00,$0C,$66,$7C
+	dc.b	$4B,$FA,$00,$7C,$4C,$9D,$00,$E0,$4C,$DD,$1F,$00,$10,$29,$EF,$01
+	dc.b	$02,$00,$00,$0F,$67,$08,$23,$7C,$53,$45,$47,$41,$2F,$00,$30,$14
+	dc.b	$70,$00,$2C,$40,$4E,$66,$72,$17,$1A,$1D,$38,$85,$DA,$47,$51,$C9
+	dc.b	$FF,$F8,$28,$9D,$36,$80,$32,$87,$34,$87,$01,$11,$66,$FC,$74,$25
+	dc.b	$10,$DD,$51,$CA,$FF,$FC,$34,$80,$32,$80,$34,$87,$2D,$00,$51,$CE
+	dc.b	$FF,$FC,$28,$9D,$28,$9D,$76,$1F,$26,$80,$51,$CB,$FF,$FC,$28,$9D
+	dc.b	$78,$13,$26,$80,$51,$CC,$FF,$FC,$7A,$03,$17,$5D,$00,$11,$51,$CD
+	dc.b	$FF,$FA,$34,$80,$4C,$D6,$7F,$FF,$46,$FC,$27,$00,$60,$6C,$80,$00
+	dc.b	$3F,$FF,$01,$00,$00,$A0,$00,$00,$00,$A1,$11,$00,$00,$A1,$12,$00
+	dc.b	$00,$C0,$00,$00,$00,$C0,$00,$04,$04,$14,$30,$3C,$07,$6C,$00,$00
+	dc.b	$00,$00,$FF,$00,$81,$37,$00,$01,$01,$00,$00,$FF,$FF,$00,$00,$80
+	dc.b	$40,$00,$00,$80,$AF,$01,$D9,$1F,$11,$27,$00,$21,$26,$00,$F9,$77
+	dc.b	$ED,$B0,$DD,$E1,$FD,$E1,$ED,$47,$ED,$4F,$D1,$E1,$F1,$08,$D9,$C1
+	dc.b	$D1,$E1,$F1,$F9,$F3,$ED,$56,$36,$E9,$E9,$81,$04,$8F,$02,$C0,$00
+	dc.b	$00,$00,$40,$00,$00,$10,$9F,$BF,$DF,$FF,$4A,$79,$00,$C0,$00,$04
+
+	ifne	*-ICD_BLK4-$100
+	fail		;ICD_BLK4 code isn't 256 bytes long!!
+	endc
+
+;*************************************************************************
+;*                             CHECKSUM CHECK                            *
+;*************************************************************************
+;Refer to SEGA for necessity of this code.
+
+DoCheckSum
+	ifne	CheckCheckSum
+	move.l	H_ROMEnd,d0	;pick up final rom address
+	lea	$1FF(pc),a0	;point to lowest address to check
+	sub.l	a0,d0		;number of bytes to do
+	lsr.l	#1,d0		;words
+	move.l	d0,d1		;d0.w = words left over
+	swap	d1		;d1.w = blocks of $10000 words
+	subq.w	#1,d0		;adjust for dbra
+	moveq	#0,d0		;sum = 0
+cc_add
+	add.w	(a0)+,d2	;add word and point at next
+	dbra	d0,cc_add	;add words
+	subq.w	#1,d1		;decrement high count
+	bhi.s	cc_add		;do another block of 64K WORDS (this copes with <=64K WORDS)
+	cmp.w	H_CheckSum,d2	;check it is correct
+	beq.s	cc_ok
+cc_fail
+	moveq	#0,d0
+	bsr	SetCRAMWrite
+	move.w	#$00E,VDPData	;RED background
+cc_ok
+	endc
+
+;*************************************************************************
+;*                SLAVE VDP REGISTERS AND SET UP HARDWARE                *
+;*************************************************************************
+;This sets up 24 WORDS of work RAM as a 'copy' of the VDP registers.
+;ICD_BLK4 sets up the hardware in a similar way, without slaving the
+;VDP registers, but THIS code does slave the registers in work RAM
+;as the VDP has write only registers (status excepted). It also
+;enables the display and Vertical interrupts as well as setting up the
+;VRAM addresses in the VDP.
+;
+;The following equates give two 4K scrolls (64X32CELLS) at 48K and 56K.
+;The window (which is 4K long) is set to 52K. Since each scroll only
+;requires 4K, there are two 4K gaps above the scrolls.
+;Sprite Attributes and HScroll have been placed in 2K of the upper gap.
+;
+;Note that with the VRAM containing all 0, this means that all the cell maps
+;contain references to cell 0, which in turn consists of 32 bytes containing
+;0, which is a blank character, so the screen will be background coloured.
+;In addition, the HScroll table contains the value 0, so the screen is not
+;scrolled and the first sprite position is 0 and has link data 0, so no
+;sprites are on screen. (Their pattern generator addresses are all space
+;character anyway).
+;
+;Any characters placed on Pattern A or B will be visible.
+
+ScrollA		set	48*1024	;8K boundary
+Window		set	52*1024	;4K boundary in 40CELL (2K in 32CELL)
+ScrollB		set	56*1024	;8K boundary
+SpriteAttr	set	60*1024	;1K boundary in 40CELL (1/2K in 32CELL)
+HScroll		set	61*1024	;1K boundary
+
+	lea	RAMBase,a0
+	move.w	#(RAMEnd-RAMBase)/4-1,d1
+	moveq	#0,d0
+sl_clr
+	move.l	d0,(a0)+
+	dbra	d1,sl_clr	;clear all of the work RAM (NB. will clear a stack!)
+
+	move.l	#No_Poll,Poll_Address
+	bsr	ResetHardware	;set up scrolls interrupts etc
+	move.w	#$2000,sr	;ALLOW INTERRUPTS (Poll_Address must be valid)
+	move.w	#Logo_Screen,NewScreen	;set first screen required
+	jmp	Main	;jump to main cartridge code block
+
+ResetHardware
+	bsr	BlackOut	;blank the palette
+	bsr	ClearVRAM	;clear vram (scrolls, hscroll, sprites, cells)
+	bsr	ClearVSRAM
+
+	move.b	#$00,SCtrl1	; set parallel mode and clear ints (p75)
+	move.b	#$00,SCtrl2	; set parallel mode and clear ints (p75)
+	move.b	#$00,SCtrl3	; set parallel mode and clear ints (p75)
+	move.b	#$40,Ctrl1
+	move.b	#$40,Ctrl2
+	move.b	#$40,Ctrl3
+
+	lea	InitialVDP(pc),a0 ;point to VDP initialization data
+	lea	VDPSlaves,a1	;point to VDP slave register in work RAM
+	moveq	#-$80,d0	;register increment
+	moveq	#24-1,d1	;count
+sl_slave
+	move.b	d0,(a1)+	;save register number
+	move.b	(a0)+,(a1)+	;save register data
+	addq.w	#1,d0	;increment register
+	dbra	d1,sl_slave	;slave all regs
+	bsr	SetVDPRegs	;set VDP registers (but not DMA VDP registers)
+	move.w	#64,CellMapCols	;set up cell map width
+	move.w	#32,CellMapRows	;set up cell map height
+	rts
+
+InitialVDP
+	dc.b	%00000100	; 0 no H interrupt, enable read HV counter
+	dc.b	%01100100	; 1 ENABLE display, ENABLE V interrupt, NO DMA, 28CELL HIGH(NTSC)
+	dc.b	ScrollA>>10	; 2 Pattern Table A
+	dc.b	Window>>10	; 3 Pattern Window
+	dc.b	ScrollB>>13	; 4 Pattern Table B
+	dc.b	SpriteAttr>>9	; 5 Sprite Attributes
+	dc.b	0	; 6 MUST BE 0
+	dc.b	%00000000	; 7 Background colour 0 in palette 0
+	dc.b	0	; 8 MUST BE 0
+	dc.b	0	; 9 MUST BE 0
+	dc.b	%11111111	;10 H interrupt divider
+	dc.b	%00000000	;11 NO Ext interrupt, FULL V scroll, FULL H scroll
+	dc.b	%10000001	;12 40CELL WIDE, NO shadow/hilight, NO interlace
+	dc.b	HScroll>>10	;13 H Scroll Table    @62K
+	dc.b	0	;14 MUST BE 0
+	dc.b	%00000010	;15 Autoinc = 2 (i.e. increment by WORD)
+	dc.b	%00000001	;16 Scroll size 32 HIGH by 64 WIDE occupies 32*64*2=4K bytes. NB CellMapCols
+	dc.b	%00000000	;17 Window H position = 0  \  => NO window
+	dc.b	%00000000	;18 Window V position = 0  /
+	dc.b	$ff	;19 \ DMA length count
+	dc.b	$ff	;20 /
+	dc.b	$00	;21 \
+	dc.b	$00	;22  > DMA source address
+	dc.b	$80	;23 /
+
+;*************************************************************************
+;*                           'SEGA' LOGO CODE                            *
+;*************************************************************************
+;This code puts the SEGA logo on screen and does palette colour cycling.
+
+ShowLogo
+	moveq	#$20,d0		;VRAM address (skip first cell)
+	move.w	#(LogoCellEnd-LogoCellData),d1	;length
+	lea	LogoCellData(pc),a0	;data ptr
+	bsr	CopyToVRAM		;put the data in VRAM
+
+	moveq	#14,d0	;x character position in cell map for logo
+	moveq	#10,d1	;y character position in cell map for logo
+	moveq	#12,d2	;x character width of logo data
+	moveq	#4,d3	;y character height of logo data
+	moveq	#1,d4	;first cell number for grid (first cell skipped) - palette 0, NO PRI/HF/VF
+	move.w	#ScrollA,d5	;VRAM address of cell map (could just as well use PatternB)
+	bsr	VerticalGrid	;set up cell map grid sequentially from top to bottom across screen
+	
+	lea	LogoPalData(pc),a0	;palette data ptr
+	bsr	SetPalette		;construct palette
+	bsr	JumpIn		;show 'SEGA' logo immediately
+
+	move.w	#30,d0
+	bsr	WaitFrames	;wait 1/2 second (on NTSC)
+
+	lea	BigBuffer,a2
+	clr.b	(a2)+
+	moveq	#$26,d0
+	moveq	#9,d1
+logo_0
+	move.b	d0,(a2)+
+	subq.w	#2,d0
+	dbra	d1,logo_0	;set up palette indices table (11 bytes)
+	addq.w	#5,a2
+
+	lea	ColourCycle(pc),a3
+	moveq	#19,d7
+	moveq	#0,d1
+logo_1
+	moveq	#3,d0
+	bsr	WaitFrames
+	moveq	#4,d0
+	bsr	SetCRAMWrite
+	moveq	#-16,d0
+	moveq	#10,d6
+logo_2
+	move.b	0(a2,d0.w),d1
+	addq.b	#2,d1
+	cmp.b	#$28,d1
+	bne.s	logo_3
+	clr.b	d1
+logo_3
+	move.b	d1,(a2,d0.w)
+	addq.b	#1,d0
+	move.w	0(a3,d1.w),VDPData
+	dbra	d6,logo_2
+	dbra	d7,logo_1	;do palette tricks
+
+	move.w	#30,d0
+	jsr	WaitFrames	;wait 1/2 second (on NTSC)
+	rts
+
+LogoPalData
+	dc.w	0,13		;start at 0 for 13 colours
+	dc.w	$0000,$0EEE,$0EC0,$0EA0
+	dc.w	$0E80,$0E60,$0E40,$0E20
+	dc.w	$0E00,$0C00,$0A00,$0800
+	dc.w	$0600
+	dc.w	-1
+
+ColourCycle
+	dc.w	$0EC0,$0EA0,$0E80,$0E60
+	dc.w	$0E40,$0E20,$0E00,$0C00
+	dc.w	$0A00,$0800,$0600,$0800
+	dc.w	$0A00,$0C00,$0E00,$0E20
+	dc.w	$0E40,$0E60,$0E80,$0EA0
+
+LogoCellData
+	dc.b	$00,$00,$00,$00,$00,$00,$01,$11,$00,$01,$16,$67,$00,$15,$66,$66
+	dc.b	$01,$55,$66,$66,$01,$55,$56,$66,$15,$55,$56,$61,$14,$55,$55,$16
+	dc.b	$14,$55,$51,$66,$14,$45,$51,$56,$14,$45,$51,$56,$14,$44,$51,$55
+	dc.b	$14,$44,$51,$55,$14,$44,$41,$55,$14,$44,$41,$55,$13,$44,$44,$15
+	dc.b	$01,$44,$44,$51,$01,$34,$44,$45,$00,$14,$44,$45,$00,$13,$44,$44
+	dc.b	$00,$01,$11,$44,$11,$11,$11,$11,$13,$33,$34,$44,$13,$33,$33,$44
+	dc.b	$12,$33,$33,$44,$12,$23,$33,$34,$11,$11,$11,$11,$12,$22,$33,$33
+	dc.b	$12,$22,$33,$33,$12,$22,$23,$33,$12,$22,$23,$33,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$11,$77,$78,$88,$89,$77,$77,$88,$88
+	dc.b	$77,$77,$88,$88,$67,$77,$78,$88,$11,$11,$11,$11,$66,$77,$77,$88
+	dc.b	$66,$77,$77,$88,$66,$67,$77,$78,$66,$67,$77,$78,$66,$11,$11,$11
+	dc.b	$66,$66,$77,$77,$56,$66,$67,$77,$56,$66,$67,$77,$55,$66,$66,$77
+	dc.b	$11,$11,$11,$17,$55,$56,$66,$61,$55,$56,$66,$67,$55,$55,$66,$66
+	dc.b	$55,$55,$66,$66,$11,$11,$56,$66,$45,$55,$56,$66,$44,$55,$55,$66
+	dc.b	$44,$55,$55,$66,$44,$45,$55,$51,$11,$11,$11,$16,$44,$44,$55,$55
+	dc.b	$44,$44,$55,$55,$34,$44,$45,$55,$34,$44,$45,$55,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$00,$99,$9A,$A1,$00,$99,$99,$A1,$01
+	dc.b	$99,$99,$A1,$15,$89,$99,$91,$15,$11,$11,$11,$55,$88,$99,$91,$55
+	dc.b	$88,$99,$91,$45,$88,$89,$91,$45,$88,$89,$91,$44,$11,$11,$11,$44
+	dc.b	$11,$11,$11,$44,$78,$11,$11,$44,$78,$81,$11,$44,$77,$88,$11,$44
+	dc.b	$77,$88,$11,$34,$77,$78,$81,$34,$17,$78,$81,$33,$17,$77,$81,$33
+	dc.b	$17,$77,$81,$33,$17,$77,$71,$33,$17,$77,$71,$33,$16,$77,$71,$33
+	dc.b	$16,$77,$71,$23,$66,$67,$71,$23,$66,$67,$71,$22,$66,$66,$10,$12
+	dc.b	$66,$66,$10,$12,$56,$61,$00,$01,$51,$10,$00,$00,$10,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$11,$11,$11,$11,$66,$77,$77,$66,$66,$77,$77
+	dc.b	$56,$66,$67,$77,$56,$66,$67,$77,$55,$66,$61,$11,$55,$66,$16,$77
+	dc.b	$55,$51,$66,$67,$55,$51,$66,$67,$55,$51,$66,$66,$55,$51,$66,$61
+	dc.b	$45,$51,$56,$66,$45,$51,$56,$66,$44,$51,$55,$66,$44,$51,$55,$66
+	dc.b	$44,$41,$11,$11,$44,$41,$55,$56,$44,$41,$55,$55,$44,$41,$55,$55
+	dc.b	$34,$41,$45,$55,$34,$41,$45,$51,$33,$41,$44,$55,$33,$41,$44,$55
+	dc.b	$33,$31,$44,$45,$33,$34,$14,$45,$33,$33,$41,$11,$33,$33,$44,$44
+	dc.b	$23,$33,$34,$44,$23,$33,$34,$44,$11,$33,$33,$44,$00,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$11,$88,$88,$99,$99,$88,$88,$99,$99
+	dc.b	$78,$88,$89,$99,$78,$88,$89,$99,$11,$11,$11,$11,$77,$88,$88,$99
+	dc.b	$77,$78,$88,$89,$77,$78,$88,$89,$77,$77,$88,$88,$11,$11,$11,$11
+	dc.b	$67,$77,$78,$88,$67,$77,$78,$88,$66,$77,$77,$88,$66,$77,$77,$88
+	dc.b	$11,$11,$11,$11,$66,$67,$77,$78,$66,$66,$77,$77,$66,$66,$77,$77
+	dc.b	$56,$66,$67,$77,$11,$11,$11,$11,$55,$66,$66,$77,$55,$66,$66,$77
+	dc.b	$55,$56,$66,$67,$55,$56,$66,$67,$11,$11,$11,$11,$55,$55,$66,$66
+	dc.b	$45,$55,$56,$66,$45,$55,$56,$66,$44,$55,$55,$66,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$00,$00,$AA,$A1,$00,$11,$AA,$A1,$01,$66
+	dc.b	$9A,$A1,$15,$66,$9A,$A1,$15,$66,$11,$11,$55,$56,$99,$A1,$55,$56
+	dc.b	$99,$91,$55,$55,$99,$91,$45,$55,$99,$91,$45,$55,$11,$11,$44,$55
+	dc.b	$81,$11,$44,$55,$81,$11,$44,$45,$81,$11,$44,$45,$81,$11,$44,$44
+	dc.b	$11,$11,$44,$44,$81,$11,$34,$44,$81,$11,$34,$44,$81,$11,$33,$44
+	dc.b	$71,$11,$33,$44,$11,$11,$33,$34,$77,$81,$33,$34,$77,$81,$33,$33
+	dc.b	$77,$71,$23,$33,$77,$71,$23,$33,$11,$11,$12,$33,$77,$71,$12,$33
+	dc.b	$67,$71,$12,$23,$67,$71,$01,$23,$66,$71,$00,$11,$11,$11,$00,$00
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$11,$67,$77,$78,$88,$67,$77,$78,$88
+	dc.b	$66,$77,$77,$88,$66,$77,$77,$88,$66,$61,$11,$11,$61,$17,$77,$78
+	dc.b	$16,$66,$77,$77,$16,$66,$67,$77,$16,$66,$67,$77,$15,$66,$61,$11
+	dc.b	$15,$66,$61,$77,$15,$56,$61,$67,$15,$56,$61,$67,$15,$55,$61,$66
+	dc.b	$15,$55,$61,$11,$15,$55,$51,$66,$15,$55,$51,$66,$14,$55,$51,$66
+	dc.b	$14,$55,$51,$66,$14,$45,$51,$11,$14,$45,$55,$56,$14,$44,$55,$55
+	dc.b	$14,$44,$55,$55,$31,$14,$45,$55,$33,$41,$11,$11,$33,$44,$44,$55
+	dc.b	$33,$34,$44,$45,$33,$34,$44,$45,$33,$33,$44,$44,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$11,$11,$11,$89,$99,$9A,$AA,$89,$99,$9A,$AA
+	dc.b	$88,$99,$99,$AA,$88,$99,$99,$AA,$11,$11,$11,$11,$88,$89,$99,$9A
+	dc.b	$88,$88,$99,$99,$78,$88,$99,$99,$78,$88,$89,$99,$11,$11,$11,$11
+	dc.b	$77,$88,$88,$99,$77,$78,$88,$99,$77,$78,$88,$89,$77,$77,$88,$89
+	dc.b	$11,$11,$18,$88,$67,$77,$18,$88,$67,$77,$18,$88,$66,$77,$17,$88
+	dc.b	$66,$77,$17,$88,$66,$67,$17,$78,$66,$67,$17,$78,$66,$66,$17,$77
+	dc.b	$66,$66,$17,$77,$56,$66,$17,$77,$11,$11,$16,$77,$55,$66,$66,$77
+	dc.b	$55,$56,$66,$67,$55,$56,$66,$67,$55,$55,$66,$66,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$11,$00,$00,$00,$A1,$00,$00,$00,$A1,$00,$00,$00
+	dc.b	$A1,$00,$00,$00,$A1,$00,$00,$00,$11,$00,$00,$00,$A1,$00,$00,$01
+	dc.b	$A1,$00,$00,$01,$A1,$00,$00,$01,$91,$00,$00,$15,$11,$00,$00,$15
+	dc.b	$91,$00,$00,$15,$91,$00,$01,$55,$91,$00,$01,$55,$91,$00,$01,$45
+	dc.b	$91,$00,$14,$45,$91,$00,$14,$44,$81,$00,$14,$44,$81,$01,$34,$44
+	dc.b	$81,$01,$34,$44,$81,$01,$33,$44,$81,$13,$33,$44,$81,$13,$33,$34
+	dc.b	$81,$23,$33,$34,$71,$22,$33,$33,$77,$22,$33,$33,$77,$22,$23,$31
+	dc.b	$77,$22,$23,$31,$77,$22,$22,$31,$77,$22,$22,$31,$11,$11,$11,$11
+	dc.b	$00,$00,$00,$00,$00,$00,$01,$11,$00,$01,$18,$88,$00,$17,$78,$88
+	dc.b	$01,$77,$78,$88,$16,$77,$77,$88,$16,$77,$77,$88,$66,$67,$77,$11
+	dc.b	$66,$67,$77,$11,$66,$66,$71,$77,$66,$66,$71,$77,$56,$66,$61,$77
+	dc.b	$56,$66,$17,$77,$55,$66,$16,$77,$55,$66,$16,$77,$55,$51,$66,$67
+	dc.b	$55,$51,$66,$67,$55,$51,$66,$66,$55,$15,$66,$66,$45,$15,$56,$66
+	dc.b	$45,$15,$56,$11,$41,$55,$55,$11,$41,$55,$55,$66,$41,$45,$55,$56
+	dc.b	$14,$45,$55,$56,$14,$44,$55,$55,$14,$44,$11,$11,$34,$44,$15,$55
+	dc.b	$34,$41,$15,$55,$33,$41,$14,$55,$33,$11,$14,$55,$11,$11,$11,$11
+	dc.b	$00,$00,$11,$11,$10,$00,$00,$10,$91,$10,$00,$10,$89,$91,$00,$10
+	dc.b	$89,$99,$10,$10,$88,$99,$91,$00,$88,$99,$91,$00,$88,$89,$99,$10
+	dc.b	$88,$89,$99,$10,$18,$88,$99,$10,$18,$88,$99,$91,$18,$88,$89,$91
+	dc.b	$71,$88,$89,$91,$71,$88,$88,$99,$71,$88,$88,$99,$77,$18,$88,$89
+	dc.b	$77,$18,$88,$89,$77,$17,$88,$88,$77,$71,$88,$88,$67,$71,$78,$88
+	dc.b	$67,$71,$78,$88,$66,$77,$17,$88,$66,$77,$17,$88,$66,$67,$17,$78
+	dc.b	$66,$67,$71,$78,$66,$66,$71,$77,$11,$11,$11,$77,$56,$66,$67,$77
+	dc.b	$56,$66,$67,$77,$55,$66,$66,$77,$55,$66,$66,$77,$11,$11,$11,$11
+	dc.b	$10,$10,$00,$01,$00,$11,$00,$11,$00,$10,$11,$01,$00,$10,$00,$01
+	dc.b	$00,$10,$00,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	dc.b	$00,$00,$00,$00,$10,$00,$00,$00,$10,$00,$00,$00,$10,$00,$00,$00
+	dc.b	$91,$00,$00,$00,$91,$00,$00,$00,$91,$00,$00,$00,$89,$10,$00,$00
+	dc.b	$89,$10,$00,$00,$88,$10,$00,$00,$88,$91,$00,$00,$88,$81,$00,$00
+	dc.b	$88,$81,$00,$00,$88,$88,$10,$00,$88,$88,$10,$00,$78,$88,$10,$00
+	dc.b	$78,$88,$81,$00,$77,$88,$81,$00,$77,$88,$81,$00,$11,$11,$11,$00
+LogoCellEnd	equ	*
+
+;*************************************************************************
+;*                   GENERAL PURPOSE SEGA ROUTINES                       *
+;*************************************************************************
+;Most of this code will be required by any substantial program. All of
+;these general purpose routines can be called with word refernces,
+;instead of long references.
+
+#INCLUDE sega.any
+
+;*************************************************************************
+;*                SHORT ADDRESS CONSTANTS AND TABLES                     *
+;*************************************************************************
+;It is advantageous to put constants and tables here, as any whose address
+;is less than 32K can have optimised word references instead of long
+;references.
+
+#INCLUDE constant.any
+
+;*************************************************************************
+;*                          EXCEPTION HANDLERS                           *
+;*************************************************************************
+;Most of the exceptions just infinite loop, as they generally will not
+;occur in final ROM code. Some of them are used by development systems.
+;The main exceptions, which may be required are the interrupt services:-
+;Ex_Level2 (external interrupt)
+;Ex_Level4 (horizontal flyback interrupts)
+;Ex_Level6 (vertical flyback interrupts).
+
+#INCLUDE except.any
+
+;*************************************************************************
+;*                              USER CODE                                *
+;*************************************************************************
+
+Logo_Init
+	jmp	ResetHardware
+
+Logo_Call
+	move.w	#Menu_Screen,NewScreen
+	jmp	ShowLogo
+No_Init
+No_Call
+No_Poll
+No_Tidy	rts
+
+s_init	equ	$0	;rs.l	1
+s_call	equ	$4	;rs.l	1
+s_poll	equ	$8	;rs.l	1
+s_tidy	equ	$C	;rs.l	1
+
+Main
+	jsr	User_Init	;do once off user initialization code
+
+MainLoop
+	move.w	NewScreen,d0	;get new screen number
+	lsl.w	#4,d0		;index screen data table
+	move.w	d0,CurScreen	;save index
+	st	NewScreen	;flag dealt with new screen (make it -ve)
+
+	lea	ScreenData(pc),a0
+	move.l	s_init(a0,d0.w),a1 ;get initialization address of screen
+	jsr	(a1)		;initialize
+
+	move.w	CurScreen,d0
+	lea	ScreenData(pc),a0
+	move.l	s_poll(a0,d0.w),Poll_Address ;set up the poll address for this screen
+
+	jsr	ClearKeys	;clear the key hit table
+
+gotscreen
+	move.w	CurScreen,d0
+	lea	ScreenData(pc),a0
+	move.l	s_call(a0,d0.w),a1 ;get the main call address
+	jsr	(a1)		;call the routine
+	tst.b	NewScreen	;see if a new screen has been requested
+	bmi.s	gotscreen	;no, so go round doing call routine
+
+	move.l	#No_Poll,Poll_Address ;yes, so kill poll address
+	move.w	CurScreen,d0
+	lea	ScreenData(pc),a0
+	move.l	s_tidy(a0,d0.w),a1 ;get tidy routine for current screen
+	jsr	(a1)	;tidy up
+
+	bra.s	MainLoop	;set up for new screen
+
+
+ScreenData
+Logo_Screen	equ	0
+	dc.l	Logo_Init,Logo_Call,No_Poll,No_Tidy
+Menu_Screen	equ	1
+	dc.l	Menu_Init,Menu_Call,Menu_Poll,No_Tidy
+Sprite_Screen	equ	2
+	dc.l	Sprite_Init,Sprite_Call,Sprite_Poll,No_Tidy
+Scroll_Screen	equ	3
+	dc.l	Scroll_Init,Scroll_Call,Scroll_Poll,No_Tidy
+Window_Screen	equ	4
+	dc.l	Window_Init,Window_Call,Window_Poll,No_Tidy
+Sound_Screen	equ	5
+	dc.l	Sound_Init,Sound_Call,Sound_Poll,Sound_Tidy
+#INCLUDE usercode.any
+
+	END
+
+

@@ -1,0 +1,11 @@
+	include vectors.obj
+	include segahdr.obj
+	include startup.obj
+	include segalogo.obj
+	
+	org	$0
+	regs	pc=$200
+BssGroup	group	org($ff0000),Bss
+	section	.bss,BssGroup
+
+

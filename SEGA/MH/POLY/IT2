@@ -1,0 +1,7 @@
+		move.b	63(a0),d0
+		and.b	#$f0,d0
+		move.b	64(a0),d1
+		and.b	#$0f,d1
+		or.b	d1,d0
+		move.b	d0,(a1)+
+
